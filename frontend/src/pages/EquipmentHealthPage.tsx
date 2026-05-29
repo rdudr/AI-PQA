@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Activity, FileWarning, HeartPulse, ShieldCheck, Waves, Zap } from 'lucide-react'
@@ -12,7 +12,7 @@ import type { ProcessResponse } from '@/types/pq'
 interface HealthComponent {
   key: string
   label: string
-  icon: JSX.Element
+  icon: React.ReactNode
   raw: number
   score: number                // 0–100
   weight: number               // contribution to overall
