@@ -1,0 +1,104 @@
+{
+  "model_name": "Hioki_PW3198_Example",
+  "description": "Example configuration for Hioki PW3198 Power Quality Analyzer",
+  "created_date": "2026-01-20",
+  "device_type": "hioki",
+  "total_mappings": 18,
+  "column_mappings": {
+    "Date": {
+      "standard_column": "timestamp",
+      "source_page": "CSV"
+    },
+    "Time": {
+      "standard_column": "timestamp",
+      "source_page": "CSV"
+    },
+    "URMS_L1": {
+      "standard_column": "voltage_phase_a",
+      "source_page": "CSV"
+    },
+    "URMS_L2": {
+      "standard_column": "voltage_phase_b",
+      "source_page": "CSV"
+    },
+    "URMS_L3": {
+      "standard_column": "voltage_phase_c",
+      "source_page": "CSV"
+    },
+    "IRMS_L1": {
+      "standard_column": "current_phase_a",
+      "source_page": "CSV"
+    },
+    "IRMS_L2": {
+      "standard_column": "current_phase_b",
+      "source_page": "CSV"
+    },
+    "IRMS_L3": {
+      "standard_column": "current_phase_c",
+      "source_page": "CSV"
+    },
+    "kW_3P": {
+      "standard_column": "kw",
+      "source_page": "CSV"
+    },
+    "kVA_3P": {
+      "standard_column": "kva",
+      "source_page": "CSV"
+    },
+    "PF_3P": {
+      "standard_column": "pf",
+      "source_page": "CSV"
+    },
+    "Freq_Avg": {
+      "standard_column": "frequency",
+      "source_page": "CSV"
+    },
+    "THDV_1": {
+      "standard_column": "vthd_a",
+      "source_page": "CSV"
+    },
+    "THDV_2": {
+      "standard_column": "vthd_b",
+      "source_page": "CSV"
+    },
+    "THDV_3": {
+      "standard_column": "vthd_c",
+      "source_page": "CSV"
+    },
+    "THDI_1": {
+      "standard_column": "ithd_a",
+      "source_page": "CSV"
+    },
+    "THDI_2": {
+      "standard_column": "ithd_b",
+      "source_page": "CSV"
+    },
+    "THDI_3": {
+      "standard_column": "ithd_c",
+      "source_page": "CSV"
+    }
+  },
+  "custom_columns": [
+    {
+      "column_name": "Plant_ID",
+      "source_page": "CSV",
+      "maps_to": "NA",
+      "reason": "Metadata - not used for analysis"
+    },
+    {
+      "column_name": "Temperature_Ambient",
+      "source_page": "CSV",
+      "maps_to": "NA",
+      "reason": "Custom environmental data"
+    }
+  ],
+  "unmapped_columns": [],
+  "data_quality": {
+    "total_columns_in_file": 20,
+    "standard_columns_mapped": 18,
+    "custom_columns_added": 2,
+    "unmapped_columns": 0,
+    "completeness": "100%"
+  },
+  "notes": "This is an example configuration showing how Hioki PW3198 exports are mapped to the standard 112-column format. All voltage, current, and THD parameters are properly mapped."
+}

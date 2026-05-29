@@ -1,0 +1,197 @@
+{
+  "Date": {
+    "standard_column": "date",
+    "source_page": "Trend 5 s"
+  },
+  "Time": {
+    "standard_column": "time",
+    "source_page": "Trend 5 s"
+  },
+  "Frequency": "frequency",
+  "A1\u0280\u1d0d\ua731": "current_phase_a",
+  "A1\u0280\u1d0d\ua731 MIN": "Arms1_min",
+  "A1\u0280\u1d0d\ua731 MAX": "Arms1_max",
+  "A2\u0280\u1d0d\ua731": "current_phase_b",
+  "A2\u0280\u1d0d\ua731 MIN": "Arms2_min",
+  "A2\u0280\u1d0d\ua731 MAX": "Arms2_max",
+  "A3\u0280\u1d0d\ua731": "current_phase_c",
+  "A3\u0280\u1d0d\ua731 MIN": "Arms3_min",
+  "A3\u0280\u1d0d\ua731 Time of MIN": "NA",
+  "A3\u0280\u1d0d\ua731 MAX": "Arms3_max",
+  "U12\u0280\u1d0d\ua731": "voltage_phase_a",
+  "U12\u0280\u1d0d\ua731 MIN": "Urms12_min",
+  "U12\u0280\u1d0d\ua731 MAX": "Urms12_max",
+  "U23\u0280\u1d0d\ua731": "voltage_phase_b",
+  "U23\u0280\u1d0d\ua731 MIN": "Urms23_min",
+  "U23\u0280\u1d0d\ua731 MAX": "Urms23_max",
+  "U31\u0280\u1d0d\ua731": "voltage_phase_c",
+  "U31\u0280\u1d0d\ua731 MIN": "Urms31_min",
+  "U31\u0280\u1d0d\ua731 MAX": "Urms31_max",
+  "A1\u1d1b\u029c\u1d05f": "ithd_a",
+  "A2\u1d1b\u029c\u1d05f": "ithd_b",
+  "A3\u1d1b\u029c\u1d05f": "ithd_c",
+  "U12\u1d1b\u029c\u1d05f": "vthd_a",
+  "U23\u1d1b\u029c\u1d05f": "vthd_b",
+  "U31\u1d1b\u029c\u1d05f": "vthd_c",
+  "P\u03a3 (W)": "kw",
+  "Q\u03a3f (var)": "kvar",
+  "N3 (var)": "nkvar",
+  "D\u03a3": "dkvar",
+  "S\u03a3 (VA)": "kva",
+  "PF\u03a3": "pf",
+  "PF\u03a3f(cos)": "dpf",
+  "L1 H001": {
+    "standard_column": "U12_%FH01",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H001": {
+    "standard_column": "U23_%FH01",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H001": {
+    "standard_column": "U31_%FH01",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H003": {
+    "standard_column": "U12_%FH03",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H003": {
+    "standard_column": "U23_%FH03",
+    "source_page": "Trend 5 s V h f"
+  },
+  "L3 H003": {
+    "standard_column": "U31_%FH03",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H005": {
+    "standard_column": "U12_%FH05",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H005": {
+    "standard_column": "U23_%FH05",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H005": {
+    "standard_column": "U31_%FH05",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H007": {
+    "standard_column": "U12_%FH07",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H007": {
+    "standard_column": "U23_%FH07",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H007": {
+    "standard_column": "U31_%FH07",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H009": {
+    "standard_column": "U12_%FH09",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H009": {
+    "standard_column": "U23_%FH09",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H009": {
+    "standard_column": "U31_%FH09",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H011": {
+    "standard_column": "U12_%FH11",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H011": {
+    "standard_column": "U23_%FH11",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H011": {
+    "standard_column": "U31_%FH11",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H013": {
+    "standard_column": "U12_%FH13",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H013": {
+    "standard_column": "U23_%FH13",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H013": {
+    "standard_column": "U31_%FH13",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H015": {
+    "standard_column": "U12_%FH15",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H015": {
+    "standard_column": "U23_%FH15",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H015": {
+    "standard_column": "U31_%FH15",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H017": {
+    "standard_column": "U12_%FH17",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H017": {
+    "standard_column": "U23_%FH17",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H017": {
+    "standard_column": "U31_%FH17",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H019": {
+    "standard_column": "U12_%FH19",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H019": {
+    "standard_column": "U23_%FH19",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H019": {
+    "standard_column": "U31_%FH19",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H021": "U12_%FH21",
+  "L2 H021": {
+    "standard_column": "U23_%FH21",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H021": {
+    "standard_column": "U31_%FH21",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H023": {
+    "standard_column": "U12_%FH23",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H023": {
+    "standard_column": "U23_%FH23",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L3 H023": {
+    "standard_column": "U31_%FH23",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L1 H025": {
+    "standard_column": "U12_%FH25",
+    "source_page": "Trend 5 s U h f"
+  },
+  "L2 H025": {
+    "standard_column": "U23_%FH25",
+    "source_page": "Trend 5 s U h f"
+  },
+  "Neutral H025": "NA",
+  "L3 H025": {
+    "standard_column": "U31_%FH25",
+    "source_page": "Trend 5 s U h f"
+  }
+}

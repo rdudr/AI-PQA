@@ -1,0 +1,136 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --color-pq-primary: #10375c;
+  --color-pq-accent: #f3c623;
+  --color-pq-warning: #eb8317;
+  --color-pq-soft: #f4f6ff;
+  --shadow-glass: 0 12px 40px rgb(16 55 92 / 0.06);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+/* Ensure robust horizontal centering for all browsers */
+.mx-auto {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: #e0f2fe; /* Soft sky-blue fallback */
+  background-image: 
+    linear-gradient(to bottom, rgba(224, 242, 254, 0.35), rgba(186, 230, 253, 0.45)), 
+    url('/liquid_glass_bg.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: #1a2744;
+}
+
+/* Base Glass Panel styling */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: var(--shadow-glass);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* Premium Liquid Glass Card Effect with Moving Gradient Border */
+.liquid-glass-card {
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.48), rgba(244, 246, 255, 0.68));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow;
+}
+
+/* The glowing gradient border using a mask */
+.liquid-glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px; /* Border thickness */
+  background: linear-gradient(120deg, transparent, rgba(59, 130, 246, 0.25), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+  opacity: 0.65;
+}
+
+/* Glowing background shine effect */
+.liquid-glass-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.3), transparent 70%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+/* Hover behaviors */
+.liquid-glass-card:hover {
+  transform: translateY(-3px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.6), rgba(235, 243, 255, 0.75));
+  box-shadow: 
+    0 20px 40px 0 rgba(16, 55, 92, 0.12),
+    0 0 25px 0 rgba(59, 130, 246, 0.15); /* Soft neon blue glow */
+}
+
+.liquid-glass-card:hover::before {
+  background: linear-gradient(
+    135deg,
+    #3b82f6,
+    #8b5cf6,
+    #ec4899,
+    #06b6d4,
+    #3b82f6
+  );
+  animation: rotate-gradient 4s linear infinite;
+  opacity: 1;
+}
+
+.liquid-glass-card:hover::after {
+  opacity: 1;
+}
+
+/* Disable hover effects on interactive editing surfaces (e.g. config tables) */
+.liquid-glass-card.no-hover:hover {
+  transform: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.48), rgba(244, 246, 255, 0.68));
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+}
+.liquid-glass-card.no-hover:hover::before {
+  background: linear-gradient(120deg, transparent, rgba(59, 130, 246, 0.25), transparent);
+  animation: none;
+  opacity: 0.65;
+}
+.liquid-glass-card.no-hover:hover::after {
+  opacity: 0;
+}
+
+@keyframes rotate-gradient {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  100% {
+    filter: hue-rotate(360deg);
+  }
+}
