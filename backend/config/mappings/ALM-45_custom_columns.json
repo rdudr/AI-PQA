@@ -1,0 +1,197 @@
+[
+  {
+    "name": "L1 H001",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH01"
+  },
+  {
+    "name": "L2 H001",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH01"
+  },
+  {
+    "name": "L3 H001",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH01"
+  },
+  {
+    "name": "L1 H003",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH03"
+  },
+  {
+    "name": "L2 H003",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH03"
+  },
+  {
+    "name": "L3 H003",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH03"
+  },
+  {
+    "name": "L1 H005",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH05"
+  },
+  {
+    "name": "L2 H005",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH05"
+  },
+  {
+    "name": "L3 H005",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH05"
+  },
+  {
+    "name": "L1 H007",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH07"
+  },
+  {
+    "name": "L2 H007",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH07"
+  },
+  {
+    "name": "L3 H007",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH07"
+  },
+  {
+    "name": "L1 H009",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH09"
+  },
+  {
+    "name": "L2 H009",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH09"
+  },
+  {
+    "name": "L3 H009",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH09"
+  },
+  {
+    "name": "L1 H011",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH11"
+  },
+  {
+    "name": "L2 H011",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH11"
+  },
+  {
+    "name": "L3 H011",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH11"
+  },
+  {
+    "name": "L1 H013",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH13"
+  },
+  {
+    "name": "L2 H013",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH13"
+  },
+  {
+    "name": "L3 H013",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH13"
+  },
+  {
+    "name": "L1 H015",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH15"
+  },
+  {
+    "name": "L2 H015",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH15"
+  },
+  {
+    "name": "L3 H015",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH15"
+  },
+  {
+    "name": "L1 H017",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH17"
+  },
+  {
+    "name": "L2 H017",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH17"
+  },
+  {
+    "name": "L3 H017",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH17"
+  },
+  {
+    "name": "L1 H019",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH19"
+  },
+  {
+    "name": "L2 H019",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH19"
+  },
+  {
+    "name": "L3 H019",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH19"
+  },
+  {
+    "name": "L1 H021",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH21"
+  },
+  {
+    "name": "L2 H021",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH21"
+  },
+  {
+    "name": "L3 H021",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH21"
+  },
+  {
+    "name": "L1 H023",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH23"
+  },
+  {
+    "name": "L2 H023",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH23"
+  },
+  {
+    "name": "L3 H023",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH23"
+  },
+  {
+    "name": "L1 H025",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A1_%FH25"
+  },
+  {
+    "name": "L2 H025",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A2_%FH25"
+  },
+  {
+    "name": "L3 H025",
+    "sheet": "Trend 5 s A h f",
+    "mapTo": "A3_%FH25"
+  }
+]

@@ -1,0 +1,355 @@
+{
+  "Date Started": "NA",
+  "Time Started": "NA",
+  "Date:": {
+    "standard_column": "date",
+    "source_page": "Recording"
+  },
+  "Time:": {
+    "standard_column": "time",
+    "source_page": "Recording"
+  },
+  "U12 RMS 1/2 cycle MIN": "Urms12_min",
+  "U12 RMS": "voltage_phase_a",
+  "U12 RMS 1/2 cycle MAX": "Urms12_max",
+  "U23 RMS 1/2 cycle MIN": "Urms23_min",
+  "U23 RMS": "voltage_phase_b",
+  "U23 RMS 1/2 cycle MAX": "Urms23_max",
+  "U31 RMS 1/2 cycle MIN": "Urms31_min",
+  "U31 RMS": "voltage_phase_c",
+  "U31 RMS 1/2 cycle MAX": "Urms31_max",
+  "A1 RMS 1/2 cycle MIN": "Arms1_min",
+  "A1 RMS": "current_phase_a",
+  "A1 RMS 1/2 cycle MAX": "Arms1_max",
+  "A2 RMS 1/2 cycle MIN": "Arms2_min",
+  "A2 RMS": "current_phase_b",
+  "A2 RMS 1/2 cycle MAX": "Arms2_max",
+  "A3 RMS 1/2 cycle MIN": "Arms3_min",
+  "A3 RMS": "current_phase_c",
+  "A3 RMS 1/2 cycle MAX": "Arms3_max",
+  "F": "frequency",
+  "PT (W)": "kw",
+  "QT (var)": "kvar",
+  "ST (VA)": "kva",
+  "DT (var)": "dkvar",
+  "PFT": "pf",
+  "U12 THDf": "vthd_a",
+  "U23 THDf": "vthd_b",
+  "U31 THDf": "vthd_c",
+  "A1 THDf": "ithd_a",
+  "A2 THDf": "ithd_b",
+  "A3 THDf": "ithd_c",
+  "U12 H0": "NA",
+  "U12 H1": {
+    "standard_column": "U12_%FH01",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H1": {
+    "standard_column": "U23_%FH01",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H1": {
+    "standard_column": "U31_%FH01",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H3": {
+    "standard_column": "U12_%FH03",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H3": {
+    "standard_column": "U23_%FH03",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H3": {
+    "standard_column": "U31_%FH03",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H5": {
+    "standard_column": "U12_%FH05",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H5": {
+    "standard_column": "U23_%FH05",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H5": {
+    "standard_column": "U31_%FH05",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H7": {
+    "standard_column": "U12_%FH07",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H7": {
+    "standard_column": "U23_%FH07",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H7": {
+    "standard_column": "U31_%FH07",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H9": {
+    "standard_column": "U12_%FH09",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H9": {
+    "standard_column": "U23_%FH09",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H9": {
+    "standard_column": "U31_%FH09",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H11": {
+    "standard_column": "U12_%FH11",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H11": {
+    "standard_column": "U23_%FH11",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H11": {
+    "standard_column": "U31_%FH11",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H13": {
+    "standard_column": "U12_%FH13",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H13": {
+    "standard_column": "U23_%FH13",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H13": {
+    "standard_column": "U31_%FH13",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H15": {
+    "standard_column": "U12_%FH15",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H15": {
+    "standard_column": "U23_%FH15",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H15": {
+    "standard_column": "U31_%FH15",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H17": {
+    "standard_column": "U12_%FH17",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H17": {
+    "standard_column": "U23_%FH17",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H17": {
+    "standard_column": "U31_%FH17",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H19": {
+    "standard_column": "U12_%FH19",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H19": {
+    "standard_column": "U23_%FH19",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H19": {
+    "standard_column": "U31_%FH19",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H21": {
+    "standard_column": "U12_%FH21",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H21": {
+    "standard_column": "U23_%FH21",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H21": {
+    "standard_column": "U31_%FH21",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H23": {
+    "standard_column": "U12_%FH23",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H23": {
+    "standard_column": "U23_%FH23",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H23": {
+    "standard_column": "U31_%FH23",
+    "source_page": "U H Harmonic %"
+  },
+  "U12 H25": {
+    "standard_column": "U12_%FH25",
+    "source_page": "U H Harmonic %"
+  },
+  "U23 H25": {
+    "standard_column": "U23_%FH25",
+    "source_page": "U H Harmonic %"
+  },
+  "U31 H25": {
+    "standard_column": "U31_%FH25",
+    "source_page": "U H Harmonic %"
+  },
+  "A1 H1": {
+    "standard_column": "A1_%FH01",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H1": {
+    "standard_column": "A2_%FH01",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H1": {
+    "standard_column": "A3_%FH01",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H3": {
+    "standard_column": "A1_%FH03",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H3": {
+    "standard_column": "A2_%FH03",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H3": {
+    "standard_column": "A3_%FH03",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H5": {
+    "standard_column": "A1_%FH05",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H5": {
+    "standard_column": "A2_%FH05",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H5": {
+    "standard_column": "A3_%FH05",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H7": {
+    "standard_column": "A1_%FH07",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H7": {
+    "standard_column": "A2_%FH07",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H7": {
+    "standard_column": "A3_%FH07",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H9": {
+    "standard_column": "A1_%FH09",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H9": {
+    "standard_column": "A2_%FH09",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H9": {
+    "standard_column": "A3_%FH09",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H11": {
+    "standard_column": "A1_%FH11",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H11": {
+    "standard_column": "A2_%FH11",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H11": {
+    "standard_column": "A3_%FH11",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H13": {
+    "standard_column": "A1_%FH13",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H13": {
+    "standard_column": "A2_%FH13",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H13": {
+    "standard_column": "A3_%FH13",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H15": {
+    "standard_column": "A1_%FH15",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H15": {
+    "standard_column": "A2_%FH15",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H15": {
+    "standard_column": "A3_%FH15",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H17": {
+    "standard_column": "A1_%FH17",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H17": {
+    "standard_column": "A2_%FH17",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H17": {
+    "standard_column": "A3_%FH17",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H19": {
+    "standard_column": "A1_%FH19",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H19": {
+    "standard_column": "A2_%FH19",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H19": {
+    "standard_column": "A3_%FH19",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H21": {
+    "standard_column": "A1_%FH21",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H21": {
+    "standard_column": "A2_%FH21",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H21": {
+    "standard_column": "A3_%FH21",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H23": {
+    "standard_column": "A1_%FH23",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H23": {
+    "standard_column": "A2_%FH23",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H23": {
+    "standard_column": "A3_%FH23",
+    "source_page": "A H Harmonic %"
+  },
+  "A1 H25": {
+    "standard_column": "A1_%FH25",
+    "source_page": "A H Harmonic %"
+  },
+  "A2 H25": {
+    "standard_column": "A2_%FH25",
+    "source_page": "A H Harmonic %"
+  },
+  "A3 H25": {
+    "standard_column": "A3_%FH25",
+    "source_page": "A H Harmonic %"
+  }
+}

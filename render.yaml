@@ -1,0 +1,34 @@
+services:
+  # ── Backend API (FastAPI) ──
+  - type: web
+    name: ai-pqa-api
+    runtime: python
+    plan: free
+    rootDir: .
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Supabase Postgres connection string. Set in the Render dashboard.
+      # When unset, the app runs purely in-memory (history not persisted).
+      - key: DATABASE_URL
+        sync: false
+
+  # ── Frontend (Vite static build) ──
+  - type: web
+    name: ai-pqa-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Full https URL of the API service above, e.g. https://ai-pqa-api.onrender.com
+      # Must include the scheme — set manually, then redeploy this static site.
+      - key: VITE_API_BASE
+        sync: false
