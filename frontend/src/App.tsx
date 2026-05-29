@@ -35,11 +35,10 @@ export default function App() {
               <Route path="energy"             element={<EnergyPage />} />
               <Route path="health"             element={<EquipmentHealthPage />} />
 
-              {/* Admin-only: upload + configure are gated. RequireAuth role="admin"
-                  silently redirects non-admins to "/" if they type the URL. */}
+              {/* Gated but accessible to all signed-in users (upload is now open) */}
               <Route
                 path="upload"
-                element={<RequireAuth role="admin"><UploadPage /></RequireAuth>}
+                element={<RequireAuth><UploadPage /></RequireAuth>}
               />
               <Route
                 path="config/:modelName"
