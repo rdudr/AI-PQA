@@ -14,7 +14,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/',           label: 'Overview' },
-  { to: '/upload',     label: 'Upload',     adminOnly: true },
+  { to: '/upload',     label: 'Upload' },
   { to: '/dashboard',  label: 'Dashboard' },
   { to: '/history',    label: 'History' },
   { to: '/compliance', label: 'Compliance' },

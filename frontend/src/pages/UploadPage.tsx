@@ -9,6 +9,7 @@ import type { PQModel } from '@/types/config'
 import { processUpload } from '@/services/api'
 import { fetchModels, addModel, deleteModel } from '@/services/configApi'
 import { useNotifications } from '@/contexts/NotificationContext'
+import { useAuth } from '@/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,7 @@ function todayIsoDate() {
 export function UploadPage() {
   const navigate = useNavigate()
   const { push } = useNotifications()
+  const { isAdmin } = useAuth()
 
   const [file, setFile] = useState<File | null>(null)
   const [progress, setProgress] = useState(0)
@@ -299,22 +301,24 @@ export function UploadPage() {
                                   {m.name}
                                   {!m.has_config && <span className="text-[10px] text-orange-500">(not configured)</span>}
                                 </span>
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                                    className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-[#10375c]"
-                                    title="Configure"
-                                  >
-                                    <Settings className="size-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => handleDelete(m.name, e)}
-                                    className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-red-500"
-                                    title="Remove"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </button>
-                                </div>
+                                {isAdmin && (
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
+                                      className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-[#10375c]"
+                                      title="Configure"
+                                    >
+                                      <Settings className="size-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => handleDelete(m.name, e)}
+                                      className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-red-500"
+                                      title="Remove"
+                                    >
+                                      <Trash2 className="size-3.5" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             ))}
                             <div className="mx-3 my-1 border-t border-[#10375c]/08" />
@@ -333,44 +337,50 @@ export function UploadPage() {
                               <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-[#10375c]/15'}`} />
                               {m.name}
                             </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                              className="rounded-md p-1 text-[#10375c]/40 opacity-0 hover:bg-white hover:text-[#10375c] group-hover:opacity-100"
-                              title="Configure"
-                            >
-                              <Settings className="size-3.5" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
+                                className="rounded-md p-1 text-[#10375c]/40 opacity-0 hover:bg-white hover:text-[#10375c] group-hover:opacity-100"
+                                title="Configure"
+                              >
+                                <Settings className="size-3.5" />
+                              </button>
+                            )}
                           </div>
                         ))}
 
                         {/* Add new */}
-                        <div className="mx-3 my-1 border-t border-[#10375c]/08" />
-                        {!addingNew ? (
-                          <button
-                            onClick={() => setAddingNew(true)}
-                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#10375c] hover:bg-[#f4f6ff]"
-                          >
-                            <Plus className="size-4" /> Add new PQ model
-                          </button>
-                        ) : (
-                          <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                            <input
-                              autoFocus
-                              className="mb-2 w-full rounded-lg border border-[#10375c]/20 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#10375c]/30"
-                              placeholder="e.g. Megger MPQ2000"
-                              value={newName}
-                              onChange={(e) => setNewName(e.target.value)}
-                              onKeyDown={(e) => { if (e.key === 'Enter') handleAddNew(); if (e.key === 'Escape') { setAddingNew(false); setNewName('') } }}
-                            />
-                            <div className="flex gap-2">
-                              <button onClick={handleAddNew} className="flex-1 rounded-lg bg-[#10375c] px-2 py-1 text-xs font-medium text-white hover:bg-[#10375c]/90">
-                                Add model
+                        {isAdmin && (
+                          <>
+                            <div className="mx-3 my-1 border-t border-[#10375c]/08" />
+                            {!addingNew ? (
+                              <button
+                                onClick={() => setAddingNew(true)}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#10375c] hover:bg-[#f4f6ff]"
+                              >
+                                <Plus className="size-4" /> Add new PQ model
                               </button>
-                              <button onClick={() => { setAddingNew(false); setNewName('') }} className="rounded-lg border px-2 py-1 text-xs text-[#10375c]/60 hover:bg-[#f4f6ff]">
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
+                            ) : (
+                              <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  autoFocus
+                                  className="mb-2 w-full rounded-lg border border-[#10375c]/20 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#10375c]/30"
+                                  placeholder="e.g. Megger MPQ2000"
+                                  value={newName}
+                                  onChange={(e) => setNewName(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddNew(); if (e.key === 'Escape') { setAddingNew(false); setNewName('') } }}
+                                />
+                                <div className="flex gap-2">
+                                  <button onClick={handleAddNew} className="flex-1 rounded-lg bg-[#10375c] px-2 py-1 text-xs font-medium text-white hover:bg-[#10375c]/90">
+                                    Add model
+                                  </button>
+                                  <button onClick={() => { setAddingNew(false); setNewName('') }} className="rounded-lg border px-2 py-1 text-xs text-[#10375c]/60 hover:bg-[#f4f6ff]">
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </motion.div>
@@ -379,7 +389,7 @@ export function UploadPage() {
               </div>
 
               {/* Configure shortcut if model has no config */}
-              {selectedModelInfo && !selectedModelInfo.has_config && (
+              {isAdmin && selectedModelInfo && !selectedModelInfo.has_config && (
                 <button
                   onClick={() => navigate(`/config/${encodeURIComponent(selectedModel)}`)}
                   className="mt-1 flex items-center gap-1 text-xs text-orange-600 hover:underline"
