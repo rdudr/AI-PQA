@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -173,7 +173,7 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
   )
 }
 
-const STANDARD_ICONS: Record<string, JSX.Element> = {
+const STANDARD_ICONS: Record<string, React.ReactNode> = {
   'IEEE 519':       <Waves className="size-4 text-blue-700" strokeWidth={2.5} />,
   'EN 50160':       <Activity className="size-4 text-indigo-700" strokeWidth={2.5} />,
   'IEC 61000-3-14': <Gauge className="size-4 text-purple-700" strokeWidth={2.5} />,
