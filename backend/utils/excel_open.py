@@ -18,9 +18,51 @@ naming every engine that was tried.
 """
 from __future__ import annotations
 
+import importlib
 import io
+import warnings
 
 import pandas as pd
+
+
+def available_engines() -> dict[str, bool]:
+    """Probe which Excel-reading engines are importable in this environment.
+
+    Used by main.py at startup so an offline / freshly-cloned install
+    immediately knows whether xlrd is missing (then .xls is broken),
+    calamine missing (then .xlsx/.xlsb are slow or broken), etc.
+    """
+    out: dict[str, bool] = {}
+    for mod, key in (
+        ("xlrd",            "xlrd"),
+        ("openpyxl",        "openpyxl"),
+        ("python_calamine", "calamine"),   # python-calamine imports as python_calamine
+        ("pyxlsb",          "pyxlsb"),
+    ):
+        try:
+            importlib.import_module(mod)
+            out[key] = True
+        except ImportError:
+            out[key] = False
+    return out
+
+
+def warn_if_engines_missing() -> None:
+    """Emit a clear warning at startup if the .xls path is broken.
+
+    Lets the offline operator see at-a-glance whether their pip install
+    is complete, instead of discovering it the first time a user
+    uploads an .xls file.
+    """
+    eng = available_engines()
+    missing = [k for k, ok in eng.items() if not ok and k in ("xlrd", "openpyxl", "calamine")]
+    if missing:
+        warnings.warn(
+            f"[PQ] Excel engines missing: {', '.join(missing)}. "
+            f"Some upload paths will fail. Run: pip install -r backend/requirements.txt",
+            ImportWarning,
+            stacklevel=2,
+        )
 
 # Engine attempt order per file extension.
 # - Primary engine first (matches the on-disk format)

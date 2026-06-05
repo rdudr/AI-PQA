@@ -13,14 +13,20 @@ The Power Quality Analyzer is a web-based platform for analyzing electrical powe
 
 ## Setup Instructions
 
-### Backend Setup
+### Backend Setup (offline / local)
 
 ```bash
 # Navigate to backend directory
 cd backend
 
-# Install dependencies
+# Install dependencies (includes xlrd for legacy .xls, calamine for
+# fast .xlsx reads, openpyxl as a fallback)
 pip install -r requirements.txt
+
+# Verify every Excel engine + every parser loaded cleanly.
+# Prints a per-dependency report and exits non-zero if anything
+# is missing — run this BEFORE the first server start.
+python check_install.py
 
 # Run the server
 python main.py
@@ -31,6 +37,13 @@ uvicorn main:app --reload --port 8000
 The backend will be available at `http://localhost:8000`
 
 **API Documentation:** `http://localhost:8000/docs` (Swagger UI)
+
+On startup the server logs which Excel engines were found, e.g.:
+
+    [PQ] Excel engines: xlrd=OK, openpyxl=OK, calamine=OK, pyxlsb=MISSING
+
+`pyxlsb` is optional (only needed for the rare `.xlsb` format). The
+other three must all be `OK` for full upload support.
 
 ### Frontend Setup
 
