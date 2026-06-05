@@ -28,7 +28,9 @@ services:
         source: /*
         destination: /index.html
     envVars:
-      # Full https URL of the API service above, e.g. https://ai-pqa-api.onrender.com
-      # Must include the scheme — set manually, then redeploy this static site.
+      # Full https URL of the API service above. Set as a literal value so
+      # Render bakes it into the bundle at build time and no manual dashboard
+      # toggle is required. If you fork the repo and rename the API service,
+      # override this in the dashboard.
       - key: VITE_API_BASE
-        sync: false
+        value: https://ai-pqa-api.onrender.com
