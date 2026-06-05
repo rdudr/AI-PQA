@@ -67,7 +67,11 @@ def list_models() -> list[dict]:
     # Custom models added by the user
     for m in custom:
         if m["name"] not in {r["name"] for r in result}:
-            result.append({**m, "is_builtin": False})
+            result.append({
+                **m,
+                "is_builtin": False,
+                "has_config": _mapping_path(m["name"]).exists() or m.get("has_config", False)
+            })
 
     return result
 
