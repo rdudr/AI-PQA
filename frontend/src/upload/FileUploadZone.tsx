@@ -26,7 +26,7 @@ export function FileUploadZone({
   // Include both extensions AND legacy MIME types so .xls files survive
   // every browser's file-picker validation (some browsers ignore the
   // .xls extension if no matching MIME is listed).
-  accept = '.csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  accept = '.csv,.xls,.xlsx,.xlsm,.xlsb,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.ms-excel.sheet.binary.macroEnabled.12',
   disabled,
   error,
 }: Props) {
@@ -48,7 +48,7 @@ export function FileUploadZone({
   }, [])
 
   const hint = useMemo(
-    () => 'Drop CSV, XLS, or XLSX — modular parsers normalize vendor formats.',
+    () => 'Drop CSV, XLS, XLSX, XLSM, or XLSB — modular parsers normalize vendor formats.',
     [],
   )
 

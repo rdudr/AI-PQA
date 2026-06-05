@@ -452,12 +452,12 @@ export function ConfigPage() {
           }`}
         >
           <Upload className="size-8 text-[#10375c]/40" />
-          <p className="text-sm text-[#10375c]/60">Drag & drop a sample CSV or XLSX file here</p>
+          <p className="text-sm text-[#10375c]/60">Drag &amp; drop a sample CSV, Excel, or XLSM/XLSB file here</p>
           <label className="cursor-pointer rounded-xl bg-[#10375c] px-4 py-2 text-sm font-medium text-white hover:bg-[#10375c]/90">
             Browse file
             <input
               type="file"
-              accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".csv,.xls,.xlsx,.xlsm,.xlsb,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12,application/vnd.ms-excel.sheet.binary.macroEnabled.12"
               className="hidden"
               onChange={onInputChange}
             />
