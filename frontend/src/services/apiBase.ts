@@ -48,8 +48,13 @@ function resolveApiBase(): string {
     // swap first; if it doesn't match the convention, fall through to the
     // hard-coded production URL.
     if (host.endsWith('.onrender.com')) {
-      if (host.includes('-web.')) {
-        return `https://${host.replace('-web.', '-api.')}`
+      // 1. Convention: -web -> -api (handles suffixes like -web-y5gq)
+      if (host.includes('-web')) {
+        return `https://${host.replace('-web', '-api')}`
+      }
+      // 2. Convention: -frontend -> -backend
+      if (host.includes('-frontend')) {
+        return `https://${host.replace('-frontend', '-backend')}`
       }
       // Any other onrender.com host (custom service names, preview URLs, etc.)
       // defaults to the documented production backend.
