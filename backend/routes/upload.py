@@ -276,14 +276,28 @@ def _apply_mappings_to_dataframe(
     # on large files: turned a 1M-row column into 1M Python objects per column).
     result_series: dict[str, pd.Series] = {}
 
+    def _as_series(source_df: pd.DataFrame, col_name: str) -> pd.Series:
+        """Return a single Series for ``col_name``.
+
+        Real PQ exports frequently contain DUPLICATE column headers (e.g. a
+        Trend sheet repeating "AVG" across sections, or merged-header files).
+        In that case ``source_df[col_name]`` returns a *DataFrame*, not a
+        Series.  Storing that and running ``pd.concat`` would produce
+        MultiIndex tuple columns and silently corrupt the whole normalized
+        output.  Collapse to the first matching column so one raw column maps
+        to exactly one standard column.
+        """
+        col_data = source_df[col_name]
+        if isinstance(col_data, pd.DataFrame):
+            col_data = col_data.iloc[:, 0]
+        return col_data.reset_index(drop=True)
+
     for norm_col, (standard_col, raw_col_orig, sheet_name) in col_to_source.items():
         source_df = sheet_lookup.get(sheet_name)
         if source_df is None or raw_col_orig not in source_df.columns:
             continue
-        col_data = source_df[raw_col_orig]
-        if isinstance(col_data, pd.DataFrame):
-            col_data = col_data.iloc[:, 0]
-        result_series[standard_col] = col_data.reset_index(drop=True)
+        # Keep as pandas Series; rebuild index so concat aligns positionally
+        result_series[standard_col] = _as_series(source_df, raw_col_orig)
 
     # ── Custom columns: same raw column name on different sheet → different std column
     for cc in (custom_cols or []):
@@ -313,10 +327,7 @@ def _apply_mappings_to_dataframe(
         if matched_col is None:
             continue
 
-        col_data = source_df[matched_col]
-        if isinstance(col_data, pd.DataFrame):
-            col_data = col_data.iloc[:, 0]
-        result_series[map_to] = col_data.reset_index(drop=True)
+        result_series[map_to] = _as_series(source_df, matched_col)
 
     if not result_series:
         raise ValueError("No mapped columns found in data")
