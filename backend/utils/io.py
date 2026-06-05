@@ -127,7 +127,8 @@ def load_dataframe(filename: str, raw: bytes) -> pd.DataFrame:
         return prepare_tabular_export(raw_df)
 
     if name.endswith((".xlsx", ".xls", ".xlsb", ".xlsm")):
-        engine = "calamine" if name.endswith((".xlsx", ".xlsb", ".xlsm")) else None
+        # .xls = legacy binary -> xlrd; everything else -> calamine
+        engine = "xlrd" if name.endswith(".xls") else "calamine"
         xls = pd.ExcelFile(buffer, engine=engine)
 
         sync_sheets: list[pd.DataFrame] = []   # sheets merged via Date+Time columns

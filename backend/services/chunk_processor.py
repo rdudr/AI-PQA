@@ -39,7 +39,8 @@ class ChunkProcessor:
             if filename.lower().endswith('.csv'):
                 df = pd.read_csv(io.BytesIO(file_bytes))
             elif filename.lower().endswith(('.xlsx', '.xls', '.xlsb', '.xlsm')):
-                engine = "calamine" if filename.lower().endswith(('.xlsx', '.xlsb', '.xlsm')) else None
+                # .xls = legacy binary -> xlrd; everything else -> calamine
+                engine = "xlrd" if filename.lower().endswith('.xls') else "calamine"
                 df = pd.read_excel(io.BytesIO(file_bytes), engine=engine)
             else:
                 raise ValueError(f"Unsupported file format: {filename}")

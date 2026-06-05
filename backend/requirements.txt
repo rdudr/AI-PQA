@@ -4,6 +4,10 @@ python-multipart>=0.0.9
 pandas>=2.2.0
 numpy>=2.0.0
 openpyxl>=3.1.0
+# Legacy .xls (Excel 97-2003) reader. python-calamine handles modern
+# .xlsx/.xlsb/.xlsm; openpyxl can't read .xls either. xlrd 2.0+ is the
+# canonical pandas backend for binary .xls files.
+xlrd>=2.0.1
 pydantic>=2.0.0
 python-calamine>=0.6.0
 # Optional persistence (used only when DATABASE_URL is set — e.g. Supabase Postgres)
