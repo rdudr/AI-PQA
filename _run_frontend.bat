@@ -15,9 +15,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 2. Run Vite dev server, forcing port 5173
+:: 2. Run Vite dev server (port is set to 5173 in vite.config.ts)
 echo Starting frontend on http://localhost:5173 ...
-npm run dev -- --port 5173
+npm run dev
 if errorlevel 1 (
     echo.
     echo ERROR: Failed to start frontend dev server.
