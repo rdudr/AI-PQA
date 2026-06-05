@@ -25,32 +25,51 @@
  * still reaches the production API.
  */
 
+// Known production backend URL.  Hardcoded as a last-resort fallback so
+// the deploy always reaches the right host even if the env var was forgotten
+// AND the frontend service was renamed on Render.
+const PRODUCTION_API = 'https://ai-pqa-api.onrender.com'
+
 function resolveApiBase(): string {
   const fromEnv = import.meta.env.VITE_API_BASE
   if (fromEnv && typeof fromEnv === 'string' && fromEnv.trim() !== '') {
-    // Strip trailing slash so `${BASE}/api/...` never produces `//api/...`
     return fromEnv.replace(/\/+$/, '')
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
     const host = window.location.hostname
-    // Render's free tier subdomains follow `<service>-<id>.onrender.com`.
-    // The frontend (`ai-pqa-web`) and backend (`ai-pqa-api`) share the same
-    // base — only the leading `web` / `api` differs.  Swap them so a stale
-    // frontend bundle still reaches the live backend.
+
+    // Local dev — same-origin so Vite's proxy can intercept /api/*
+    if (host === 'localhost' || host === '127.0.0.1' || host.endsWith('.local')) {
+      return ''
+    }
+
+    // Render hostname conventions: try `*-web.onrender.com` -> `*-api.onrender.com`
+    // swap first; if it doesn't match the convention, fall through to the
+    // hard-coded production URL.
     if (host.endsWith('.onrender.com')) {
-      if (host.startsWith('ai-pqa-web')) {
-        return 'https://ai-pqa-api.onrender.com'
-      }
-      // Generic fallback for forks / renamed services that follow the
-      // `*-web.onrender.com` convention.
       if (host.includes('-web.')) {
         return `https://${host.replace('-web.', '-api.')}`
       }
+      // Any other onrender.com host (custom service names, preview URLs, etc.)
+      // defaults to the documented production backend.
+      return PRODUCTION_API
     }
+
+    // Anything else (custom domains in front of Render, alt hosts) also
+    // defaults to the production backend.  Safer than letting the call hit
+    // the frontend's own domain and getting index.html back.
+    return PRODUCTION_API
   }
 
   return ''
 }
 
 export const API_BASE: string = resolveApiBase()
+
+// Surface the resolved API base in the console at boot so deploy-vs-runtime
+// mismatches are immediately diagnosable from DevTools.
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.info(`[PQ] API base resolved → ${API_BASE || '(same origin)'}`)
+}
