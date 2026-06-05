@@ -24,18 +24,6 @@ BUILTIN_MODELS: list[str] = [
     "ALM-31",
     "ALM-36",
     "ALM-45",
-    # Hioki
-    "Hioki PQ-3198",
-    "Hioki PW3198",
-    # Fluke
-    "Fluke 1750",
-    "Fluke 1760",
-    # Schneider Electric
-    "Schneider PowerLogic",
-    # Dranetz
-    "Dranetz HDPQ",
-    # Generic / fallback
-    "Custom CSV",
 ]
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Settings, Trash2, ChevronDown } from 'lucide-react'
@@ -72,7 +72,7 @@ export function UploadPage() {
     audit_date: todayIsoDate(),
   })
 
-  useEffect(() => {
+  const loadModelsList = useCallback(() => {
     setLoadingModels(true)
     fetchModels().then(m => {
       setModels(m)
@@ -80,10 +80,17 @@ export function UploadPage() {
         setSelectedModel(m[0].name)
         setMeta(prev => ({ ...prev, pq_analyzer_type: m[0].name }))
       }
-    }).catch(() => {}).finally(() => {
+    }).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error('[PQ] Failed to load models from API:', err)
+    }).finally(() => {
       setLoadingModels(false)
     })
   }, [])
+
+  useEffect(() => {
+    loadModelsList()
+  }, [loadModelsList])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -359,9 +366,19 @@ export function UploadPage() {
                           <div className="mx-3 my-2 rounded-lg border border-amber-200/70 bg-amber-50/70 p-2.5 text-[11px] text-amber-800">
                             <p className="font-semibold">No PQ models available from the API.</p>
                             <p className="mt-1 leading-snug">
-                              The backend may still be redeploying. Wait 1–2 minutes and reload — or
+                              The backend may still be redeploying. Wait 1–2 minutes and retry — or
                               {isAdmin ? ' add a new model below to continue.' : ' ask the administrator to add one.'}
                             </p>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                loadModelsList()
+                              }}
+                              className="mt-2 rounded bg-amber-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-amber-700 transition active:scale-95 cursor-pointer"
+                            >
+                              Retry connection
+                            </button>
                           </div>
                         )}
 

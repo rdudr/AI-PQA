@@ -26,7 +26,7 @@
   {
     "name": "Rishabh Clampmeter",
     "is_builtin": false,
-    "has_config": false,
+    "has_config": true,
     "created_at": "2026-06-05T06:22:41.221677"
   }
 ]
