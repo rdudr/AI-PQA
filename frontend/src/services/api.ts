@@ -9,7 +9,7 @@ import type {
 } from '@/types/pq'
 import type { HistoryItem } from '@/utils/sessionDb'
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ''
+import { API_BASE } from './apiBase'
 
 export async function fetchTablePage(params: {
   sessionId: string
