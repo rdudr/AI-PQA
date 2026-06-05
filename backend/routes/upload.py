@@ -26,6 +26,73 @@ MAX_TABLE_PAGE = 500
 
 # ── Helpers for normalized Excel download ──────────────────────────────────────
 
+def _try_parse_html_or_csv(raw: bytes) -> tuple[pd.DataFrame, str] | None:
+    try:
+        text = raw.decode("utf-8-sig", errors="replace")
+    except Exception:
+        return None
+
+    # Check if it looks like HTML table
+    if "<table" in text.lower() and "</table" in text.lower():
+        try:
+            from html.parser import HTMLParser
+            class SimpleHTMLTableParser(HTMLParser):
+                def __init__(self):
+                    super().__init__()
+                    self.tables = []
+                    self.current_table = []
+                    self.current_row = []
+                    self.current_cell = []
+                    self.in_cell = False
+
+                def handle_starttag(self, tag, attrs):
+                    if tag in ("td", "th"):
+                        self.in_cell = True
+                        self.current_cell = []
+                    elif tag == "tr":
+                        self.current_row = []
+
+                def handle_endtag(self, tag):
+                    if tag in ("td", "th"):
+                        self.in_cell = False
+                        self.current_row.append("".join(self.current_cell).strip())
+                    elif tag == "tr":
+                        if self.current_row:
+                            self.current_table.append(self.current_row)
+                    elif tag == "table":
+                        if self.current_table:
+                            self.tables.append(self.current_table)
+                            self.current_table = []
+
+                def handle_data(self, data):
+                    if self.in_cell:
+                        self.current_cell.append(data)
+
+            parser = SimpleHTMLTableParser()
+            parser.feed(text)
+            if parser.tables and len(parser.tables[0]) > 0:
+                table = parser.tables[0]
+                width = max(len(r) for r in table)
+                padded = [r + [""] * (width - len(r)) for r in table]
+                return pd.DataFrame(padded), "Sheet1"
+        except Exception:
+            pass
+
+    # Check if it's a CSV
+    try:
+        import csv as _csv
+        reader = _csv.reader(io.StringIO(text))
+        rows = [r for r in reader if any(c.strip() for c in r)]
+        if rows:
+            width = max(len(r) for r in rows)
+            padded = [r + [""] * (width - len(r)) for r in rows]
+            return pd.DataFrame(padded), "CSV"
+    except Exception:
+        pass
+
+    return None
+
+
 def _read_all_pages_for_mapping(filename: str, raw: bytes) -> list[dict]:
     """Return a list of page dicts with sheet name and dataframe.
 
@@ -53,15 +120,26 @@ def _read_all_pages_for_mapping(filename: str, raw: bytes) -> list[dict]:
         # Robust engine selection with fallback chain (legacy .xls + xlrd,
         # modern .xlsx + calamine, mis-extensioned files all handled).
         from utils.excel_open import open_excel
-        xls, engine = open_excel(filename, raw)
-        for sheet in xls.sheet_names:
-            try:
-                raw_df = pd.read_excel(xls, sheet_name=sheet, header=None, engine=engine)
+        try:
+            xls, engine = open_excel(filename, raw)
+            for sheet in xls.sheet_names:
+                try:
+                    raw_df = pd.read_excel(xls, sheet_name=sheet, header=None, engine=engine)
+                    processed = prepare_tabular_export(raw_df)
+                    if not processed.empty and len(processed.columns) >= 2:
+                        pages.append({"sheet_name": str(sheet), "df": processed})
+                except Exception:
+                    continue
+        except Exception as exc:
+            # Fallback for fake .xls files (e.g. HTML tables or CSV named as .xls)
+            fallback_res = _try_parse_html_or_csv(raw)
+            if fallback_res:
+                raw_df, sheet_name = fallback_res
                 processed = prepare_tabular_export(raw_df)
                 if not processed.empty and len(processed.columns) >= 2:
-                    pages.append({"sheet_name": str(sheet), "df": processed})
-            except Exception:
-                continue
+                    pages.append({"sheet_name": sheet_name, "df": processed})
+                    return pages
+            raise exc
 
     return pages
 
