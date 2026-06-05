@@ -18,7 +18,7 @@ async function _json<T>(res: Response): Promise<T> {
 }
 
 export async function fetchModels(): Promise<PQModel[]> {
-  return _json(await fetch(`${BASE}/api/config/models`))
+  return _json(await fetch(`${BASE}/api/config/models?_=${Date.now()}`))
 }
 
 export async function addModel(name: string): Promise<PQModel> {

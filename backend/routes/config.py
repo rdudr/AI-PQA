@@ -4,7 +4,7 @@ from __future__ import annotations
 import io
 
 import pandas as pd
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, UploadFile, Response
 from pydantic import BaseModel
 
 from parsers.base import STANDARD_COLUMNS, slug_column, _invert_synonyms
@@ -170,7 +170,8 @@ def _classify_col(raw_name: str, saved: dict[str, str]) -> tuple[str | None, str
 # ── Models list ────────────────────────────────────────────────────────────────
 
 @router.get("/models")
-def get_models() -> list[dict]:
+def get_models(response: Response) -> list[dict]:
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     return list_models()
 
 
