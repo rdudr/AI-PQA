@@ -76,9 +76,10 @@ export function UploadPage() {
     setLoadingModels(true)
     fetchModels().then(m => {
       setModels(m)
-      if (m.length > 0) {
-        setSelectedModel(m[0].name)
-        setMeta(prev => ({ ...prev, pq_analyzer_type: m[0].name }))
+      const visible = m.filter(item => item.has_config || isAdmin)
+      if (visible.length > 0) {
+        setSelectedModel(visible[0].name)
+        setMeta(prev => ({ ...prev, pq_analyzer_type: visible[0].name }))
       }
     }).catch((err) => {
       // eslint-disable-next-line no-console
@@ -86,7 +87,7 @@ export function UploadPage() {
     }).finally(() => {
       setLoadingModels(false)
     })
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     loadModelsList()
@@ -212,9 +213,11 @@ export function UploadPage() {
     }
   }
 
-  // Split models: built-ins vs custom
-  const builtins = models.filter((m) => m.is_builtin)
-  const customs = models.filter((m) => !m.is_builtin)
+  // Filter models: only show configured models to normal users.
+  // Admins see all models (so they can configure them).
+  const visibleModels = useMemo(() => {
+    return models.filter((m) => m.has_config || isAdmin)
+  }, [models, isAdmin])
 
   // ── Full-screen loading for all async operations ─────────────────────────
   if (loadingModels) {
@@ -293,71 +296,46 @@ export function UploadPage() {
                       className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[#10375c]/12 bg-white shadow-lg"
                     >
                       <div className="max-h-64 overflow-y-auto p-1">
-                        {/* Custom models (user-added) */}
-                        {customs.length > 0 && (
-                          <>
-                            <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[#10375c]/40">My models</p>
-                            {customs.map((m) => (
-                              <div
-                                key={m.name}
-                                onClick={() => handleSelectModel(m.name)}
-                                className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-yellow-400'}`} />
-                                  {m.name}
-                                  {!m.has_config && <span className="text-[10px] text-orange-500">(not configured)</span>}
-                                </span>
-                                {isAdmin && (
-                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                                      className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-[#10375c]"
-                                      title="Configure"
-                                    >
-                                      <Settings className="size-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={(e) => handleDelete(m.name, e)}
-                                      className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-red-500"
-                                      title="Remove"
-                                    >
-                                      <Trash2 className="size-3.5" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            <div className="mx-3 my-1 border-t border-[#10375c]/08" />
-                          </>
-                        )}
-
-                        {/* Built-in models — only render the heading + list when there is something to show */}
-                        {builtins.length > 0 && (
-                          <>
-                            <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[#10375c]/40">Built-in</p>
-                            {builtins.map((m) => (
-                              <div
-                                key={m.name}
-                                onClick={() => handleSelectModel(m.name)}
-                                className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
-                              >
-                                <span className="flex items-center gap-2">
-                                  <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-[#10375c]/15'}`} />
-                                  {m.name}
-                                </span>
-                                {isAdmin && (
+                        {/* Unified list of visible models */}
+                        {visibleModels.map((m) => (
+                          <div
+                            key={m.name}
+                            onClick={() => handleSelectModel(m.name)}
+                            className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-yellow-400'}`} />
+                              {m.name}
+                              {!m.has_config && <span className="text-[10px] text-orange-500">(not configured)</span>}
+                            </span>
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
+                                  className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-[#10375c]"
+                                  title="Configure"
+                                >
+                                  <Settings className="size-3.5" />
+                                </button>
+                                {!m.is_builtin && (
                                   <button
-                                    onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                                    className="rounded-md p-1 text-[#10375c]/40 opacity-0 hover:bg-white hover:text-[#10375c] group-hover:opacity-100"
-                                    title="Configure"
+                                    onClick={(e) => handleDelete(m.name, e)}
+                                    className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-red-500"
+                                    title="Remove"
                                   >
-                                    <Settings className="size-3.5" />
+                                    <Trash2 className="size-3.5" />
                                   </button>
                                 )}
                               </div>
-                            ))}
-                          </>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* If API succeeded but there are no visible models (e.g. none configured for standard user) */}
+                        {models.length > 0 && visibleModels.length === 0 && (
+                          <div className="mx-3 my-2 text-[11px] text-amber-800">
+                            No PQ models have been configured yet. Please ask the administrator to configure a model.
+                          </div>
                         )}
 
                         {/* Empty-state hint — visible only when the API returned no models at all.
