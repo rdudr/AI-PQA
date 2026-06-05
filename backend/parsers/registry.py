@@ -33,26 +33,37 @@ class _ConfiguredParser(BasePQParser):
         return self._standard_frame(df)
 
 
+def _slug_vendor(vendor: str) -> str:
+    """Normalize a vendor name for parser routing.
+
+    Strips spaces, dashes, underscores, and lowercases so that user-visible
+    display names (e.g. "ALM-45", "Hioki PQ-3198") route to the same parser
+    as the legacy slugs ("alm_45", "hioki_p3198").
+    """
+    return "".join(ch for ch in str(vendor).strip().lower() if ch.isalnum())
+
+
 def get_parser(vendor: str) -> BasePQParser:
     """Return the appropriate parser, layering any user-saved config on top."""
-    # Resolve base parser
     vendor_str = str(vendor)
+    key = _slug_vendor(vendor_str)
 
-    match vendor_str:
-        case "hioki" | "hioki_p3198":
-            base: BasePQParser = HiokiParser()
-        case "fluke":
-            base = FlukeParser()
-        case "schneider":
-            base = SchneiderParser()
-        case "dranetz":
-            base = DranetzParser()
-        case "alm_36" | "alm_31" | "alm_20" | "alm_45":
-            base = ALMParser()
-        case "custom_csv":
-            base = CustomCsvParser()
-        case _:
-            base = GenericParser()
+    # Match on the normalized key so "ALM-45", "alm_45", "alm45" all resolve.
+    base: BasePQParser
+    if key.startswith("alm"):                                # alm20/31/36/45
+        base = ALMParser()
+    elif "hioki" in key:                                     # hiokipq3198, hiokipw3198
+        base = HiokiParser()
+    elif "fluke" in key:
+        base = FlukeParser()
+    elif "schneider" in key or "powerlogic" in key:
+        base = SchneiderParser()
+    elif "dranetz" in key or "hdpq" in key:
+        base = DranetzParser()
+    elif "customcsv" in key or key == "custom":
+        base = CustomCsvParser()
+    else:
+        base = GenericParser()
 
     # Layer saved user mappings on top (if any)
     try:

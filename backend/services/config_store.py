@@ -14,8 +14,29 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent / "config"
 _MODELS_FILE = _ROOT / "models.json"
 _MAPPINGS_DIR = _ROOT / "mappings"
 
-# Built-in models that always appear in the list (from parsers/registry.py)
-BUILTIN_MODELS: list[str] = []
+# Built-in models that always appear in the dropdown — even on a fresh
+# deploy where backend/config/ is empty.  These are the PQ analyzer families
+# the parser registry already supports out of the box.  Users can still add
+# their own custom names on top via "Add new PQ model".
+BUILTIN_MODELS: list[str] = [
+    # ALM series (Algodue / Lovato OEM rebrands)
+    "ALM-20",
+    "ALM-31",
+    "ALM-36",
+    "ALM-45",
+    # Hioki
+    "Hioki PQ-3198",
+    "Hioki PW3198",
+    # Fluke
+    "Fluke 1750",
+    "Fluke 1760",
+    # Schneider Electric
+    "Schneider PowerLogic",
+    # Dranetz
+    "Dranetz HDPQ",
+    # Generic / fallback
+    "Custom CSV",
+]
 
 
 def _ensure_dirs() -> None:
