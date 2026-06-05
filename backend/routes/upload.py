@@ -50,7 +50,13 @@ def _read_all_pages_for_mapping(filename: str, raw: bytes) -> list[dict]:
         return pages
 
     if name.endswith((".xlsx", ".xls", ".xlsb", ".xlsm")):
-        engine = "calamine" if name.endswith((".xlsx", ".xlsb", ".xlsm")) else None
+        # Engine selection:
+        #   .xls            -> xlrd (legacy binary Excel 97-2003)
+        #   .xlsx/.xlsb/.xlsm -> calamine (fast Rust-based reader)
+        if name.endswith(".xls"):
+            engine = "xlrd"
+        else:
+            engine = "calamine"
         xls = pd.ExcelFile(io.BytesIO(raw), engine=engine)
         for sheet in xls.sheet_names:
             try:

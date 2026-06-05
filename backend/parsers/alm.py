@@ -55,6 +55,12 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "phase_a_i", "phase_1_i", "pha_i",
         "i_phase_a",
         "i1_avg", "i1_rms_avg", "i_a_avg",
+        # ALM-20 + Algodue real-world exports
+        "i1_a", "i_1_a", "il1_a", "il_1_a", "current_l1_a",
+        "amp_1", "amp1", "amps_1", "amps_l1", "ampere_1", "ampere_l1",
+        "current_1", "current_phase_1",
+        "i_1_avg", "i1_min", "i1_max", "i1_mean",
+        "ia_rms", "iarms", "i_a_rms",
     ),
     "current_phase_b": (
         "i2", "i_2", "il2", "i_l2", "i_l2_rms", "il2_rms",
@@ -64,6 +70,12 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "phase_b_i", "phase_2_i", "phb_i",
         "i_phase_b",
         "i2_avg", "i2_rms_avg", "i_b_avg",
+        # ALM-20 + Algodue real-world exports
+        "i2_a", "i_2_a", "il2_a", "il_2_a", "current_l2_a",
+        "amp_2", "amp2", "amps_2", "amps_l2", "ampere_2", "ampere_l2",
+        "current_2", "current_phase_2",
+        "i_2_avg", "i2_min", "i2_max", "i2_mean",
+        "ib_rms", "ibrms", "i_b_rms",
     ),
     "current_phase_c": (
         "i3", "i_3", "il3", "i_l3", "i_l3_rms", "il3_rms",
@@ -73,6 +85,12 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "phase_c_i", "phase_3_i", "phc_i",
         "i_phase_c",
         "i3_avg", "i3_rms_avg", "i_c_avg",
+        # ALM-20 + Algodue real-world exports
+        "i3_a", "i_3_a", "il3_a", "il_3_a", "current_l3_a",
+        "amp_3", "amp3", "amps_3", "amps_l3", "ampere_3", "ampere_l3",
+        "current_3", "current_phase_3",
+        "i_3_avg", "i3_min", "i3_max", "i3_mean",
+        "ic_rms", "icrms", "i_c_rms",
     ),
     "kw": (
         "p_kw", "p_kw_total", "p_tot_kw", "pkw", "p_3ph_kw",
@@ -80,17 +98,35 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "kw_total", "kw_3ph", "kw_3p",
         "ep_kw", "real_power_kw",
         "p_avg", "p_kw_avg",
+        # ALM-20 + Algodue real-world exports
+        "p_sum", "psum", "p_t", "pt",
+        "p_total_kw", "p_3p", "p_3ph",
+        "total_active_power", "total_active_power_kw",
+        "kw_sum", "kwsum", "kw_avg",
+        "p_w", "p_total_w",   # sometimes reported as W rather than kW
     ),
     "kva": (
         "s_kva", "s_kva_total", "s_tot_kva", "skva", "s_3ph_kva",
         "apparent_power_kva", "apparent_power", "s_total", "s_tot",
         "kva_total", "kva_3ph", "kva_3p",
+        # ALM-20 + Algodue real-world exports
+        "s_sum", "ssum", "s_t", "st",
+        "s_total_kva", "s_3p", "s_3ph",
+        "total_apparent_power", "total_apparent_power_kva",
+        "kva_sum", "kvasum", "kva_avg",
+        "s_va", "s_total_va",   # sometimes reported as VA rather than kVA
     ),
     "pf": (
         "pf_total", "pf_tot", "pf_3ph", "pf_3p",
         "power_factor_total", "power_factor",
         "cos_phi", "cosphi", "cos_phi_total",
         "pf_avg",
+        # ALM-20 + Algodue real-world exports
+        "pf_sum", "pfsum", "pf_t", "pft",
+        "pf_3", "pfa_3", "pf_avg_3p",
+        "fp", "fp_total", "fp_3p",       # FP (Factor Potencia) for Spanish/Italian exports
+        "cosphi_total", "cosphi_sum", "cosphi_t", "cosphi_3p", "cosphi_3ph",
+        "cos_phi_sum", "cos_phi_3p", "cos_phi_3ph", "cos_phi_t",
     ),
     "frequency": (
         "freq", "f", "hz", "f_hz", "freq_avg", "freq_hz",

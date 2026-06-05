@@ -116,6 +116,25 @@ def guess_timestamp_series(df: pd.DataFrame) -> pd.Series | None:
     return None
 
 
+# Common physical-unit suffixes that vendors append to column names.
+# When an exact-slug lookup fails, the resolver tries again with one of
+# these stripped from the tail — so "P_sum_kW" / "S sum (kVA)" / "I1 (A)" /
+# "U12 (V)" / "F (Hz)" all match their unit-less synonyms.
+# Listed longest-first so e.g. "_kvar" is tried before "_var" / "_a".
+_UNIT_SUFFIXES: tuple[str, ...] = (
+    "_kvarh", "_kvar",
+    "_kwh", "_kw",
+    "_kva",
+    "_varh", "_var",
+    "_wh", "_va",
+    "_w",
+    "_hz",
+    "_pct", "_percent",
+    "_v",
+    "_a",
+)
+
+
 class BasePQParser(ABC):
     vendor_key: str
 
@@ -125,6 +144,25 @@ class BasePQParser(ABC):
     @abstractmethod
     def normalize(self, df: pd.DataFrame) -> pd.DataFrame:
         raise NotImplementedError
+
+    def _resolve_slug(self, slug: str) -> str | None:
+        """Map a column slug to a canonical standard name.
+
+        1. Exact match against the synonym map (fast path).
+        2. Tail-strip a common unit suffix and try again.  This lets
+           "p_sum_kw", "s_sum_kva", "i1_a", "u12_v", "f_hz" map to
+           their unit-less synonyms ("p_sum"/"kw"/"i1"/"u12"/"f")
+           without forcing every parser to enumerate the unit-tagged
+           variants of every metric.
+        """
+        if slug in self._synonym_map:
+            return self._synonym_map[slug]
+        for suffix in _UNIT_SUFFIXES:
+            if slug.endswith(suffix) and len(slug) > len(suffix):
+                stripped = slug[: -len(suffix)].rstrip("_")
+                if stripped and stripped in self._synonym_map:
+                    return self._synonym_map[stripped]
+        return None
 
     def _standard_frame(self, df: pd.DataFrame) -> pd.DataFrame:
         renamed: dict[str, pd.Series] = {}
@@ -139,9 +177,13 @@ class BasePQParser(ABC):
             renamed["timestamp"] = ts
 
         for slug, original in slug_map.items():
-            canonical = self._synonym_map.get(slug)
+            canonical = self._resolve_slug(slug)
             if canonical and canonical != "timestamp":
-                renamed[canonical] = pd.to_numeric(df[original], errors="coerce")
+                # Preserve the first column matched per canonical name —
+                # later duplicates are ignored so an exact-match wins over
+                # a suffix-stripped fallback.
+                if canonical not in renamed:
+                    renamed[canonical] = pd.to_numeric(df[original], errors="coerce")
 
         out = pd.DataFrame(renamed)
         for col in STANDARD_COLUMNS:

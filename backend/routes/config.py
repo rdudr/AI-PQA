@@ -62,7 +62,8 @@ def _read_all_pages(filename: str, raw: bytes) -> list[dict]:
         return pages
 
     if name.endswith((".xlsx", ".xls", ".xlsb", ".xlsm")):
-        engine = "calamine" if name.endswith((".xlsx", ".xlsb", ".xlsm")) else None
+        # .xls = legacy binary -> xlrd; everything else -> calamine
+        engine = "xlrd" if name.endswith(".xls") else "calamine"
         xls = pd.ExcelFile(io.BytesIO(raw), engine=engine)
         for sheet in xls.sheet_names:
             try:
