@@ -33,7 +33,12 @@ const PRODUCTION_API = 'https://ai-pqa-api.onrender.com'
 function resolveApiBase(): string {
   const fromEnv = import.meta.env.VITE_API_BASE
   if (fromEnv && typeof fromEnv === 'string' && fromEnv.trim() !== '') {
-    return fromEnv.replace(/\/+$/, '')
+    const envUrl = fromEnv.replace(/\/+$/, '')
+    // Safety check: if VITE_API_BASE points to the frontend web/static service itself,
+    // ignore it and fall through to resolve the backend API URL.
+    if (!envUrl.includes('-web.onrender.com') && !envUrl.includes('-frontend.onrender.com')) {
+      return envUrl
+    }
   }
 
   if (typeof window !== 'undefined' && window.location?.hostname) {
