@@ -325,29 +325,45 @@ export function UploadPage() {
                           </>
                         )}
 
-                        {/* Built-in models */}
-                        <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[#10375c]/40">Built-in</p>
-                        {builtins.map((m) => (
-                          <div
-                            key={m.name}
-                            onClick={() => handleSelectModel(m.name)}
-                            className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-[#10375c]/15'}`} />
-                              {m.name}
-                            </span>
-                            {isAdmin && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                                className="rounded-md p-1 text-[#10375c]/40 opacity-0 hover:bg-white hover:text-[#10375c] group-hover:opacity-100"
-                                title="Configure"
+                        {/* Built-in models — only render the heading + list when there is something to show */}
+                        {builtins.length > 0 && (
+                          <>
+                            <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-widest text-[#10375c]/40">Built-in</p>
+                            {builtins.map((m) => (
+                              <div
+                                key={m.name}
+                                onClick={() => handleSelectModel(m.name)}
+                                className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
                               >
-                                <Settings className="size-3.5" />
-                              </button>
-                            )}
+                                <span className="flex items-center gap-2">
+                                  <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-[#10375c]/15'}`} />
+                                  {m.name}
+                                </span>
+                                {isAdmin && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
+                                    className="rounded-md p-1 text-[#10375c]/40 opacity-0 hover:bg-white hover:text-[#10375c] group-hover:opacity-100"
+                                    title="Configure"
+                                  >
+                                    <Settings className="size-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {/* Empty-state hint — visible only when the API returned no models at all.
+                            Surfaces the most common production cause: backend hasn't redeployed yet. */}
+                        {models.length === 0 && (
+                          <div className="mx-3 my-2 rounded-lg border border-amber-200/70 bg-amber-50/70 p-2.5 text-[11px] text-amber-800">
+                            <p className="font-semibold">No PQ models available from the API.</p>
+                            <p className="mt-1 leading-snug">
+                              The backend may still be redeploying. Wait 1–2 minutes and reload — or
+                              {isAdmin ? ' add a new model below to continue.' : ' ask the administrator to add one.'}
+                            </p>
                           </div>
-                        ))}
+                        )}
 
                         {/* Add new */}
                         {isAdmin && (
