@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Lock, LogIn, ShieldCheck, User as UserIcon, Eye, EyeOff } from 'lucide-react'
@@ -17,9 +17,11 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false)
 
   // If already signed-in, drop straight to the dashboard
-  if (user) {
-    navigate(location.state?.from ?? '/dashboard', { replace: true })
-  }
+  useEffect(() => {
+    if (user) {
+      navigate(location.state?.from ?? '/dashboard', { replace: true })
+    }
+  }, [user, navigate, location])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()

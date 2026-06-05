@@ -299,8 +299,11 @@ async def inspect_file(
 
             matched, source = _classify_col(raw_name, saved)
 
+            col_data = df[col]
+            if isinstance(col_data, pd.DataFrame):
+                col_data = col_data.iloc[:, 0]
             sample = [
-                str(v) for v in df[col].dropna().head(3).tolist()
+                str(v) for v in col_data.dropna().head(3).tolist()
             ]
 
             if raw_name not in col_index:

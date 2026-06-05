@@ -1,0 +1,19 @@
+{
+  "Timestamp": "timestamp",
+  "V_A": "voltage_phase_a",
+  "V_B": "voltage_phase_b",
+  "V_C": "voltage_phase_c",
+  "I_A": "current_phase_a",
+  "I_B": "current_phase_b",
+  "I_C": "current_phase_c",
+  "kW": "kw",
+  "kVA": "kva",
+  "PF": "pf",
+  "Frequency": "frequency",
+  "VTHD_A": "vthd_a",
+  "VTHD_B": "vthd_b",
+  "VTHD_C": "vthd_c",
+  "ITHD_A": "ithd_a",
+  "ITHD_B": "ithd_b",
+  "ITHD_C": "ithd_c"
+}

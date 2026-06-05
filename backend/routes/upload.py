@@ -280,8 +280,10 @@ def _apply_mappings_to_dataframe(
         source_df = sheet_lookup.get(sheet_name)
         if source_df is None or raw_col_orig not in source_df.columns:
             continue
-        # Keep as pandas Series; rebuild index so concat aligns positionally
-        result_series[standard_col] = source_df[raw_col_orig].reset_index(drop=True)
+        col_data = source_df[raw_col_orig]
+        if isinstance(col_data, pd.DataFrame):
+            col_data = col_data.iloc[:, 0]
+        result_series[standard_col] = col_data.reset_index(drop=True)
 
     # ── Custom columns: same raw column name on different sheet → different std column
     for cc in (custom_cols or []):
@@ -311,7 +313,10 @@ def _apply_mappings_to_dataframe(
         if matched_col is None:
             continue
 
-        result_series[map_to] = source_df[matched_col].reset_index(drop=True)
+        col_data = source_df[matched_col]
+        if isinstance(col_data, pd.DataFrame):
+            col_data = col_data.iloc[:, 0]
+        result_series[map_to] = col_data.reset_index(drop=True)
 
     if not result_series:
         raise ValueError("No mapped columns found in data")
