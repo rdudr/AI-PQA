@@ -1,12 +1,12 @@
 import type { InspectResponse, MappingsResponse, PQModel } from '@/types/config'
 
+import { API_BASE as BASE } from './apiBase'
+
 export interface CustomColumn {
   name: string
   sheet: string
   mapTo: string
 }
-
-const BASE = import.meta.env.VITE_API_BASE ?? ''
 
 async function _json<T>(res: Response): Promise<T> {
   if (!res.ok) {
