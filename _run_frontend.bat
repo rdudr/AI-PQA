@@ -15,7 +15,21 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: 2. Run Vite dev server (port is set to 5173 in vite.config.ts)
+:: 2. Auto-heal: Check and install node_modules if missing
+if not exist node_modules (
+    echo ============================================
+    echo  WARNING: node_modules is missing!
+    echo  Installing frontend dependencies... This may take a moment.
+    echo ============================================
+    call npm install
+    if errorlevel 1 (
+        echo ERROR: npm install failed.
+        pause
+        exit /b 1
+    )
+)
+
+:: 3. Run Vite dev server (port is set to 5173 in vite.config.ts)
 echo Starting frontend on http://localhost:5173 ...
 npm run dev
 if errorlevel 1 (

@@ -27,7 +27,22 @@ if exist .venv\Scripts\activate.bat (
     call env\Scripts\activate.bat
 )
 
-:: 3. Run uvicorn on port 8000
+:: 3. Auto-heal: Check if uvicorn is installed, if not install requirements
+python -c "import uvicorn" >nul 2>&1
+if errorlevel 1 (
+    echo ============================================
+    echo  WARNING: Python packages (like uvicorn) are missing!
+    echo  Installing backend dependencies... This may take a moment.
+    echo ============================================
+    pip install -r requirements.txt
+    if errorlevel 1 (
+        echo ERROR: pip install failed.
+        pause
+        exit /b 1
+    )
+)
+
+:: 4. Run uvicorn on port 8000
 echo Starting backend on http://localhost:8000 ...
 python -m uvicorn main_fixed:app --reload --port 8000
 if errorlevel 1 (
