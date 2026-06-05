@@ -5,8 +5,8 @@ cd /d "%~dp0"
 echo ====================================================
 echo  AI Power Quality Analyzer - Local Launcher
 echo ====================================================
-echo  Backend  ^>  http://localhost:8000
-echo  Frontend ^>  http://localhost:5173
+echo  Backend  ^>  http://127.0.0.1:8000
+echo  Frontend ^>  http://127.0.0.1:5173
 echo ====================================================
 echo.
 
@@ -24,7 +24,7 @@ start "PQ Frontend" "%~dp0_run_frontend.bat"
 :: Open browser after frontend starts
 echo Opening browser...
 timeout /t 4 /nobreak >nul
-start "" "http://localhost:5173"
+start "" "http://127.0.0.1:5173"
 
 echo.
 echo ====================================================
