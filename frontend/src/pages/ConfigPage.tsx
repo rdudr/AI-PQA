@@ -141,9 +141,7 @@ export function ConfigPage() {
       const merged: typeof savedBase = { ...savedBase }
       for (const col of data.columns) {
         if (merged[col.raw_name] !== undefined) continue   // saved takes priority
-        if (col.matched_to && col.match_source === 'auto') {
-          merged[col.raw_name] = col.matched_to
-        }
+        // Default to NA for auto-detected columns on first load to let the user select everything
       }
 
       setAssignments(merged)
@@ -513,8 +511,15 @@ export function ConfigPage() {
                           const rawVal = assignments[col.raw_name]
                           const selectVal = extractStd(rawVal) || 'NA'
 
-                          // Show all standard columns in the dropdown so the user can always see them.
-                          // Mark columns that are already mapped to another field with a warning indicator.
+                          // Available = standard cols not used by any OTHER row.
+                          // assignmentCounts includes this row, but it only counts
+                          // selectVal for this row — so for any c !== selectVal the
+                          // count reflects only other rows. Always keep selectVal so a
+                          // valid (even conflicting) assignment never shows blank.
+                          const availableCols = STANDARD_COLS.filter(
+                            (c) => c === selectVal || (assignmentCounts[c] ?? 0) === 0,
+                          )
+
                           return (
                             <select
                               value={selectVal}
@@ -524,14 +529,9 @@ export function ConfigPage() {
                               className="w-44 rounded-lg border border-[#10375c]/15 bg-white px-2 py-1 text-xs text-[#10375c] focus:outline-none focus:ring-1 focus:ring-[#10375c]/30"
                             >
                               <option value="NA">NA (skip)</option>
-                              {STANDARD_COLS.map((s) => {
-                                const isUsed = (assignmentCounts[s] ?? 0) > 0 && s !== selectVal
-                                return (
-                                  <option key={s} value={s}>
-                                    {s}{isUsed ? ' ⚠️ (in use)' : ''}
-                                  </option>
-                                )
-                              })}
+                              {availableCols.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
                             </select>
                           )
                         })()}
@@ -652,6 +652,9 @@ export function ConfigPage() {
                       }
                     })
 
+                    // Get available columns
+                    const availableCols = STANDARD_COLS.filter((c) => !assignedCols.has(c))
+
                     return (
                       <select
                         value={customColMapTo}
@@ -660,14 +663,9 @@ export function ConfigPage() {
                       >
                         <option value="">— select standard column —</option>
                         <option value="NA">NA (not available)</option>
-                        {STANDARD_COLS.map((col) => {
-                          const isUsed = assignedCols.has(col)
-                          return (
-                            <option key={col} value={col}>
-                              {col}{isUsed ? ' ⚠️ (in use)' : ''}
-                            </option>
-                          )
-                        })}
+                        {availableCols.map((col) => (
+                          <option key={col} value={col}>{col}</option>
+                        ))}
                       </select>
                     )
                   })()}
