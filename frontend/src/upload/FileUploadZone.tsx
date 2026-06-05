@@ -23,7 +23,10 @@ export function FileUploadZone({
   onFiles,
   file = null,
   onClear,
-  accept = '.csv,.xls,.xlsx',
+  // Include both extensions AND legacy MIME types so .xls files survive
+  // every browser's file-picker validation (some browsers ignore the
+  // .xls extension if no matching MIME is listed).
+  accept = '.csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   disabled,
   error,
 }: Props) {

@@ -62,9 +62,11 @@ def _read_all_pages(filename: str, raw: bytes) -> list[dict]:
         return pages
 
     if name.endswith((".xlsx", ".xls", ".xlsb", ".xlsm")):
-        # .xls = legacy binary -> xlrd; everything else -> calamine
-        engine = "xlrd" if name.endswith(".xls") else "calamine"
-        xls = pd.ExcelFile(io.BytesIO(raw), engine=engine)
+        # Robust engine selection with fallback chain (handles legacy .xls,
+        # mis-extensioned files, etc.). Raises ValueError if nothing can
+        # parse it — caller (the FastAPI route) maps that to HTTP 400.
+        from utils.excel_open import open_excel
+        xls, engine = open_excel(filename, raw)
         for sheet in xls.sheet_names:
             try:
                 raw_df = pd.read_excel(xls, sheet_name=sheet, header=None, engine=engine)
@@ -185,9 +187,22 @@ async def inspect_file(
     if not raw:
         raise HTTPException(status_code=400, detail="Empty file.")
 
-    pages = _read_all_pages(file.filename or "sample.xlsx", raw)
+    # Read every sheet — surface a clear error if the file simply can't be
+    # parsed (broken Excel, wrong extension, etc.) instead of silently
+    # returning "no columns".
+    try:
+        pages = _read_all_pages(file.filename or "sample.xlsx", raw)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not pages:
-        raise HTTPException(status_code=400, detail="No readable data found in file.")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No readable data found in file. The file opened correctly but "
+                "no sheet contained ≥ 2 columns of tabular data. Verify the file "
+                "is not blank, password-protected, or a chart-only workbook."
+            ),
+        )
 
     saved = get_mappings(model_name)
 

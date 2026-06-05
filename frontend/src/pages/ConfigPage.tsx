@@ -455,7 +455,12 @@ export function ConfigPage() {
           <p className="text-sm text-[#10375c]/60">Drag & drop a sample CSV or XLSX file here</p>
           <label className="cursor-pointer rounded-xl bg-[#10375c] px-4 py-2 text-sm font-medium text-white hover:bg-[#10375c]/90">
             Browse file
-            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onInputChange} />
+            <input
+              type="file"
+              accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={onInputChange}
+            />
           </label>
         </div>
       )}
