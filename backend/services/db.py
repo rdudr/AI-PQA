@@ -13,21 +13,44 @@ Two tables:
 
 All psycopg imports are lazy (inside functions, behind ``enabled()``), so the
 module imports cleanly even when psycopg isn't installed locally.
+
+RESILIENCE (added after a production incident)
+----------------------------------------------
+A database that is unreachable must NEVER block a request or crash the server.
+Previously a bad DATABASE_URL (e.g. Supabase's IPv6-only direct host, which
+Render's IPv4 egress can't reach) caused a 30 s pool timeout on the upload
+path; the health check then failed and Render killed the instance. To prevent
+that:
+
+  * Short connect + pool timeouts (default 5 s) instead of the 30 s default.
+  * A circuit breaker: after a failure the DB is skipped for a cooldown window
+    so every subsequent request doesn't pay the timeout again.
+  * Writes (save_summary / save_frame) run fire-and-forget on a background
+    thread, so the HTTP response never waits on Postgres.
 """
 from __future__ import annotations
 
 import logging
 import os
 import threading
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 
+# Tunables (env-overridable). Kept small so a dead DB fails fast.
+_CONNECT_TIMEOUT = int(os.environ.get("DB_CONNECT_TIMEOUT", "5"))   # libpq seconds
+_POOL_TIMEOUT = float(os.environ.get("DB_POOL_TIMEOUT", "5"))       # getconn wait
+_BREAKER_COOLDOWN = float(os.environ.get("DB_BREAKER_COOLDOWN", "120"))  # seconds
+
 _pool: Any = None
 _pool_lock = threading.Lock()
 _schema_ready = False
+
+# Circuit breaker: while monotonic() < _breaker_until, skip all DB work.
+_breaker_until = 0.0
 
 _DDL_STATEMENTS = (
     """
@@ -59,30 +82,73 @@ def enabled() -> bool:
     return bool(_DATABASE_URL)
 
 
+def _breaker_tripped() -> bool:
+    return time.monotonic() < _breaker_until
+
+
+def _trip_breaker() -> None:
+    """Skip DB work for the cooldown window after a failure.
+
+    Also tears down the pool so its background reconnect workers stop hammering
+    an unreachable host. A fresh pool is created on the next attempt after the
+    cooldown elapses.
+    """
+    global _breaker_until, _pool, _schema_ready
+    _breaker_until = time.monotonic() + _BREAKER_COOLDOWN
+    pool, _pool, _schema_ready = _pool, None, False
+    if pool is not None:
+        try:
+            pool.close()
+        except Exception:
+            pass
+    logger.warning(
+        "DB circuit breaker tripped — skipping persistence for %.0fs", _BREAKER_COOLDOWN
+    )
+
+
 def _get_pool():
     """Lazily open the connection pool and ensure the schema exists.
 
     Returns the pool, or None if the pool can't be opened (callers then skip
-    persistence and the app keeps running in-memory).
+    persistence and the app keeps running in-memory). Fails fast and trips the
+    circuit breaker so a dead DB never blocks repeatedly.
     """
     global _pool, _schema_ready
+
+    if _breaker_tripped():
+        return None
     if _pool is not None:
         return _pool
+
     with _pool_lock:
         if _pool is None:
-            from psycopg_pool import ConnectionPool
+            try:
+                from psycopg_pool import ConnectionPool
 
-            # prepare_threshold=None disables prepared statements so the same
-            # URL works against Supabase's transaction pooler (port 6543) too.
-            pool = ConnectionPool(
-                _DATABASE_URL,
-                min_size=0,
-                max_size=4,
-                open=False,
-                kwargs={"autocommit": True, "prepare_threshold": None},
-            )
-            pool.open()
-            _pool = pool
+                # prepare_threshold=None disables prepared statements so the same
+                # URL works against Supabase's transaction pooler (port 6543) too.
+                # connect_timeout caps each TCP/auth attempt; pool timeout caps
+                # how long getconn() waits — both small so we fail fast.
+                pool = ConnectionPool(
+                    _DATABASE_URL,
+                    min_size=0,
+                    max_size=4,
+                    open=False,
+                    timeout=_POOL_TIMEOUT,
+                    kwargs={
+                        "autocommit": True,
+                        "prepare_threshold": None,
+                        "connect_timeout": _CONNECT_TIMEOUT,
+                    },
+                )
+                # wait=False: don't block startup waiting for the first connection.
+                pool.open(wait=False)
+                _pool = pool
+            except Exception:
+                logger.exception("Failed to open DB pool")
+                _trip_breaker()
+                return None
+
         if not _schema_ready:
             try:
                 with _pool.connection() as conn:
@@ -92,22 +158,30 @@ def _get_pool():
                 logger.info("PQ Postgres schema ready")
             except Exception:
                 logger.exception("Failed to create PQ schema")
+                _trip_breaker()
+                return None
+
     return _pool
+
+
+def _run_bg(fn, *args) -> None:
+    """Run a write fire-and-forget on a daemon thread so the request never waits."""
+    threading.Thread(target=fn, args=args, daemon=True).start()
 
 
 # ── Session summaries (history) ────────────────────────────────────────────
 
-def save_summary(payload: dict[str, Any]) -> None:
-    """Upsert one processed session's full ProcessResponse JSON + index fields."""
-    if not enabled():
-        return
+def _save_summary_sync(payload: dict[str, Any]) -> None:
     meta = payload.get("metadata") or {}
     dq = payload.get("data_quality") or {}
     quality = dq.get("quality_score") if isinstance(dq, dict) else None
     try:
         from psycopg.types.json import Json
 
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return
+        with pool.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO pq_sessions
@@ -138,14 +212,25 @@ def save_summary(payload: dict[str, Any]) -> None:
             )
     except Exception:
         logger.exception("save_summary failed for %s", payload.get("session_id"))
+        _trip_breaker()
+
+
+def save_summary(payload: dict[str, Any]) -> None:
+    """Upsert one processed session (fire-and-forget; never blocks the request)."""
+    if not enabled() or _breaker_tripped():
+        return
+    _run_bg(_save_summary_sync, payload)
 
 
 def load_summary(session_id: str) -> dict[str, Any] | None:
     """Return the stored full ProcessResponse JSON for a session, or None."""
-    if not enabled():
+    if not enabled() or _breaker_tripped():
         return None
     try:
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return None
+        with pool.connection() as conn:
             row = conn.execute(
                 "SELECT payload FROM pq_sessions WHERE session_id = %s",
                 (session_id,),
@@ -153,15 +238,19 @@ def load_summary(session_id: str) -> dict[str, Any] | None:
             return row[0] if row else None
     except Exception:
         logger.exception("load_summary failed for %s", session_id)
+        _trip_breaker()
         return None
 
 
 def list_summaries() -> list[dict[str, Any]]:
     """Return lightweight summaries of all persisted sessions, newest first."""
-    if not enabled():
+    if not enabled() or _breaker_tripped():
         return []
     try:
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return []
+        with pool.connection() as conn:
             rows = conn.execute(
                 """
                 SELECT session_id, filename, company_name, plant_name,
@@ -185,28 +274,34 @@ def list_summaries() -> list[dict[str, Any]]:
         ]
     except Exception:
         logger.exception("list_summaries failed")
+        _trip_breaker()
         return []
 
 
 def delete_session(session_id: str) -> None:
     """Remove a session's summary and frame."""
-    if not enabled():
+    if not enabled() or _breaker_tripped():
         return
     try:
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return
+        with pool.connection() as conn:
             conn.execute("DELETE FROM pq_sessions WHERE session_id = %s", (session_id,))
             conn.execute("DELETE FROM pq_frames WHERE session_id = %s", (session_id,))
     except Exception:
         logger.exception("delete_session failed for %s", session_id)
+        _trip_breaker()
 
 
 # ── Measurement frames (Parquet bytes) ─────────────────────────────────────
 
-def save_frame(session_id: str, data: bytes) -> None:
-    if not enabled():
-        return
+def _save_frame_sync(session_id: str, data: bytes) -> None:
     try:
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return
+        with pool.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO pq_frames (session_id, frame_parquet)
@@ -219,13 +314,24 @@ def save_frame(session_id: str, data: bytes) -> None:
             )
     except Exception:
         logger.exception("save_frame failed for %s", session_id)
+        _trip_breaker()
+
+
+def save_frame(session_id: str, data: bytes) -> None:
+    """Persist a measurement frame (fire-and-forget; never blocks the request)."""
+    if not enabled() or _breaker_tripped():
+        return
+    _run_bg(_save_frame_sync, session_id, data)
 
 
 def load_frame(session_id: str) -> bytes | None:
-    if not enabled():
+    if not enabled() or _breaker_tripped():
         return None
     try:
-        with _get_pool().connection() as conn:
+        pool = _get_pool()
+        if pool is None:
+            return None
+        with pool.connection() as conn:
             row = conn.execute(
                 "SELECT frame_parquet FROM pq_frames WHERE session_id = %s",
                 (session_id,),
@@ -235,4 +341,5 @@ def load_frame(session_id: str) -> bytes | None:
         return bytes(row[0])
     except Exception:
         logger.exception("load_frame failed for %s", session_id)
+        _trip_breaker()
         return None
