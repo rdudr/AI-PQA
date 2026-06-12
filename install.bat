@@ -26,7 +26,7 @@ node -v >nul 2>&1
 if errorlevel 1 (
     echo.
     echo ERROR: Node.js is not installed or not in PATH.
-    echo Please install Node.js (version 20+) and try again.
+    echo Please install Node.js ^(version 20+^) and try again.
     pause
     exit /b 1
 )

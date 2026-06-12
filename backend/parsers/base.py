@@ -34,8 +34,10 @@ STANDARD_COLUMNS: tuple[str, ...] = (
 
 def slug_column(name: str) -> str:
     import unicodedata
-    # Normalize unicode (e.g. small caps ʀᴍꜱ to rms)
-    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
+    s = str(name)
+    # Map ALM specific unicode small caps to standard letters (ʀᴍꜱ -> rms)
+    s = s.replace("\u0280", "r").replace("\u1d0d", "m").replace("\ua731", "s")
+    s = unicodedata.normalize('NFKC', s).strip().lower()
     s = re.sub(r"[%\s]+", "_", s)
     s = re.sub(r"[^a-z0-9_]+", "_", s)
     return re.sub(r"_+", "_", s).strip("_")
@@ -176,7 +178,17 @@ class BasePQParser(ABC):
         if ts is not None:
             renamed["timestamp"] = ts
 
-        for slug, original in slug_map.items():
+        # Prefer slugs with "rms" or "avg" so that we pick Phase voltages (V1rms)
+        # instead of Line-to-Line voltages (V1) if both are mapped to the same synonym.
+        # Prefer U12/U23/U31 (Line-to-Line, ~430V) over V1/V2/V3 (Line-to-Neutral, ~250V)
+        # because line-to-line is the standard for industrial PQ analysis.
+        sorted_slugs = sorted(slug_map.items(), key=lambda x: (
+            not ("u12" in x[0] or "u23" in x[0] or "u31" in x[0]),
+            "rms" not in x[0],
+            "avg" not in x[0]
+        ))
+
+        for slug, original in sorted_slugs:
             canonical = self._resolve_slug(slug)
             if canonical and canonical != "timestamp":
                 # Preserve the first column matched per canonical name —

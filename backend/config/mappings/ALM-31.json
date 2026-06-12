@@ -351,5 +351,7 @@
   "A3 H25": {
     "standard_column": "A3_%FH25",
     "source_page": "A H Harmonic %"
-  }
+  },
+  "Cos \u03c61 (DPF)": "NA",
+  "Cos \u03c6T (DPF)": "dpf"
 }

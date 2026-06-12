@@ -10,7 +10,7 @@ echo ============================================
 node -v >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Node.js is not installed or not in PATH.
-    echo Please install Node.js (version 20+) and try again.
+    echo Please install Node.js ^(version 20+^) and try again.
     pause
     exit /b 1
 )
@@ -44,7 +44,8 @@ if not exist node_modules\vite (
 )
 
 :: 4. Run Vite dev server (port is set to 5173 in vite.config.ts)
-echo Starting frontend on http://127.0.0.1:5173 ...
+echo Starting frontend on http://localhost:5173 ...
+echo Frontend URL: http://localhost:5173
 npm run dev
 if errorlevel 1 (
     echo.

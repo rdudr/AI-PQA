@@ -17,13 +17,13 @@ if errorlevel 1 (
 
 :: 2. Detect and activate virtual environment if exists
 if exist .venv\Scripts\activate.bat (
-    echo Activating virtual environment (.venv)...
+    echo Activating virtual environment ^(.venv^)...
     call .venv\Scripts\activate.bat
 ) else if exist venv\Scripts\activate.bat (
-    echo Activating virtual environment (venv)...
+    echo Activating virtual environment ^(venv^)...
     call venv\Scripts\activate.bat
 ) else if exist env\Scripts\activate.bat (
-    echo Activating virtual environment (env)...
+    echo Activating virtual environment ^(env^)...
     call env\Scripts\activate.bat
 )
 
@@ -61,6 +61,7 @@ if not errorlevel 1 (
 :: 5. Run uvicorn — uses main_fixed.py (local-dev entry; main.py is the
 ::    Render-deploy entry; both expose `app`).
 echo Starting backend on http://localhost:8000 ...
+echo Backend URL: http://localhost:8000
 echo (Press Ctrl+C in this window to stop)
 echo.
 python -m uvicorn main_fixed:app --reload --port 8000
