@@ -360,12 +360,14 @@ def _apply_mappings_to_dataframe(
         date_col = output_df.get("date")
         time_col = output_df.get("time")
         if date_col is not None and time_col is not None:
-            # Merge date and time columns
-            combined = pd.to_datetime(
+            # Merge date and time columns, converting to ISO format string
+            combined_dt = pd.to_datetime(
                 date_col.astype(str).str.strip() + " " + time_col.astype(str).str.strip(),
                 errors="coerce",
                 utc=False
             )
+            # Convert to ISO format string for consistent display
+            combined = combined_dt.dt.strftime("%Y-%m-%d %H:%M:%S")
             output_df.insert(0, "timestamp", combined)
 
     return output_df
