@@ -355,6 +355,19 @@ def _apply_mappings_to_dataframe(
     # Convert these to proper strings so the frontend can display them.
     output_df = _normalize_date_time_cols(output_df)
 
+    # ── Create timestamp from date + time if timestamp doesn't exist ───
+    if "timestamp" not in output_df.columns and ("date" in output_df.columns or "time" in output_df.columns):
+        date_col = output_df.get("date")
+        time_col = output_df.get("time")
+        if date_col is not None and time_col is not None:
+            # Merge date and time columns
+            combined = pd.to_datetime(
+                date_col.astype(str).str.strip() + " " + time_col.astype(str).str.strip(),
+                errors="coerce",
+                utc=False
+            )
+            output_df.insert(0, "timestamp", combined)
+
     return output_df
 
 
