@@ -75,4 +75,21 @@ def prepare_tabular_export(raw: pd.DataFrame) -> pd.DataFrame:
     body = body.reset_index(drop=True)
     # Drop fully empty rows
     body = body.dropna(how="all")
+
+    # Skip unit rows (typically follow headers in PQ analyzer exports)
+    # Unit rows contain strings like 'V', 'A', 'var', '%', 'Hz', etc. in numeric columns
+    # Identify by checking if first non-NaN numeric column contains a typical unit string
+    unit_keywords = {'v', 'a', 'w', 'var', 'va', 'hz', '%', 'pf', 'thd', 'pct', 'percent'}
+    if len(body) > 0:
+        first_row = body.iloc[0]
+        is_units_row = False
+        for val in first_row:
+            if pd.notna(val):
+                val_str = str(val).strip().lower()
+                if val_str in unit_keywords and len(val_str) <= 4:  # Keep short, don't match normal data
+                    is_units_row = True
+                    break
+        if is_units_row:
+            body = body.iloc[1:].reset_index(drop=True)
+
     return body
