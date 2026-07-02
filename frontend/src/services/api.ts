@@ -95,6 +95,7 @@ export async function processUpload(
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${API_BASE}/api/upload/process`)
     xhr.responseType = 'json'
+    xhr.timeout = 600_000 // 10 minutes for large multi-file uploads
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
@@ -117,6 +118,7 @@ export async function processUpload(
         reject(new Error(message))
       }
     }
+    xhr.ontimeout = () => reject(new Error('Upload timed out. Try fewer files or smaller files.'))
     xhr.onerror = () => reject(new Error('Network error: Ensure backend is running'))
     xhr.send(body)
   })
