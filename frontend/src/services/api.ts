@@ -79,12 +79,16 @@ export async function downloadNormalizedSessionExcel(sessionId: string): Promise
 }
 
 export async function processUpload(
-  file: File,
+  files: { file: File; model: string }[],
   metadata: AuditMetadata,
   onProgress?: (pct: number) => void,
 ): Promise<ProcessResponse> {
   const body = new FormData()
-  body.append('file', file)
+  files.forEach(({ file }) => {
+    body.append('files', file)
+  })
+  const modelsList = files.map(({ model }) => model)
+  body.append('file_models', JSON.stringify(modelsList))
   body.append('metadata', JSON.stringify(metadata))
 
   return new Promise((resolve, reject) => {

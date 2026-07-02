@@ -29,11 +29,14 @@ export function ChartCard({
         const instance = chartRef.current?.getEchartsInstance()
         if (!instance) return
         try {
+          instance.setOption({ toolbox: { show: false } })
           const dataUrl = instance.getDataURL({
             type: 'png',
             pixelRatio: 2,
             backgroundColor: '#ffffff'
           })
+          instance.setOption({ toolbox: { show: true } })
+
           const res = await fetch(dataUrl)
           const blob = await res.blob()
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])

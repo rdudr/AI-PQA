@@ -27,8 +27,8 @@ def print_section(title: str) -> None:
 
 def print_status(status: str, message: str, details: Any = None) -> None:
     """Print status message with optional details."""
-    symbols = {"✓": "✓", "✗": "✗", "→": "→", "•": "•"}
-    prefix = symbols.get(status[0], "•")
+    symbols = {"✓": "[OK]", "✗": "[ERR]", "→": "->", "•": "*"}
+    prefix = symbols.get(status[0], "*")
     print(f"  {prefix} {message}")
     if details:
         if isinstance(details, dict):
@@ -96,15 +96,15 @@ def verify_parsers() -> bool:
         for parser_type in parser_types:
             try:
                 parser = get_parser(parser_type)
-                results[parser_type] = "✓" if parser else "✗"
+                results[parser_type] = "OK" if parser else "ERR"
             except Exception as e:
                 results[parser_type] = str(e)[:50]
 
         for parser_type, status in results.items():
-            symbol = "✓" if status == "✓" else "✗"
+            symbol = "✓" if status == "OK" else "✗"
             print_status(symbol, f"{parser_type.upper()} parser: {status}")
 
-        return all(v == "✓" for v in results.values())
+        return all(v == "OK" for v in results.values())
     except Exception as e:
         print_status("✗", f"Error: {e}")
         return False
@@ -284,21 +284,21 @@ def generate_report(results: dict[str, bool]) -> None:
         symbol = "✓" if result else "✗"
         print_status(symbol, test_name)
 
-    print(f"\n{'─' * 70}")
+    print(f"\n{'-' * 70}")
     print(f"  RESULT: {passed}/{total} tests passed")
 
     if passed == total:
-        print(f"  ✓ All systems operational and connected!")
+        print(f"  [OK] All systems operational and connected!")
     else:
-        print(f"  ✗ Some systems need attention")
-    print(f"{'─' * 70}\n")
+        print(f"  [ERR] Some systems need attention")
+    print(f"{'-' * 70}\n")
 
 
 def main() -> None:
     """Run complete system verification."""
     print("\n" + "=" * 70)
     print("  PQ ANALYZER - COMPLETE SYSTEM VERIFICATION")
-    print("  Testing: Configuration → Mapping → Processing → Normalization")
+    print("  Testing: Configuration -> Mapping -> Processing -> Normalization")
     print("=" * 70)
 
     results = {

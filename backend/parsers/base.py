@@ -100,21 +100,38 @@ def _invert_synonyms(extra: dict[str, tuple[str, ...]] | None = None) -> dict[st
     return inverted
 
 
+def robust_to_datetime(series: pd.Series, utc: bool = False) -> pd.Series:
+    """Robust conversion to datetime that handles DD-MM-YYYY vs YYYY-MM-DD correctly."""
+    import re
+    str_series = series.astype(str).str.strip()
+    sample = None
+    for v in str_series:
+        if v and v != "nan" and v != "None":
+            sample = v
+            break
+    if not sample:
+        return pd.to_datetime(series, errors="coerce", utc=utc)
+    if re.match(r"^\d{4}", sample):
+        return pd.to_datetime(series, errors="coerce", utc=utc, dayfirst=False)
+    else:
+        return pd.to_datetime(series, errors="coerce", utc=utc, dayfirst=True)
+
+
 def guess_timestamp_series(df: pd.DataFrame) -> pd.Series | None:
     """Pick best-effort timestamp column or merge Date + Time."""
     mapping = {slug_column(c): c for c in df.columns}
     for key in ("timestamp", "datetime", "date_time"):
         if key in mapping:
-            return pd.to_datetime(df[mapping[key]], errors="coerce", utc=False)
+            return robust_to_datetime(df[mapping[key]], utc=False)
     date_keys = ("date", "meas_date", "measurement_date")
     time_keys = ("time", "meas_time", "clock")
     date_col = next((mapping[k] for k in date_keys if k in mapping), None)
     time_col = next((mapping[k] for k in time_keys if k in mapping), None)
     if date_col and time_col:
         combo = df[date_col].astype(str).str.strip() + " " + df[time_col].astype(str).str.strip()
-        return pd.to_datetime(combo, errors="coerce", utc=False)
+        return robust_to_datetime(combo, utc=False)
     if date_col:
-        return pd.to_datetime(df[date_col], errors="coerce", utc=False)
+        return robust_to_datetime(df[date_col], utc=False)
     return None
 
 

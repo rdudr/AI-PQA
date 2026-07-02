@@ -14,10 +14,14 @@ import numpy as np
 import pandas as pd
 
 # ── Physical bounds (lo, hi) for each standard column ─────────────────────────
+# Voltage upper bound is set to 15 000 V to accommodate MV (medium-voltage)
+# devices such as PQ-1938 that measure line-to-line voltages at 11 kV class.
+# The old 520 V ceiling caused _best_multiplier to apply ×0.01, incorrectly
+# dividing genuine 11 328 V readings down to ~113 V.
 PHYSICAL_BOUNDS: dict[str, tuple[float, float]] = {
-    "voltage_phase_a": (50.0, 520.0),
-    "voltage_phase_b": (50.0, 520.0),
-    "voltage_phase_c": (50.0, 520.0),
+    "voltage_phase_a": (50.0, 15_000.0),
+    "voltage_phase_b": (50.0, 15_000.0),
+    "voltage_phase_c": (50.0, 15_000.0),
     "current_phase_a": (0.0, 10_000.0),
     "current_phase_b": (0.0, 10_000.0),
     "current_phase_c": (0.0, 10_000.0),
@@ -38,7 +42,13 @@ PHYSICAL_BOUNDS: dict[str, tuple[float, float]] = {
 }
 
 # Standard LV/MV nominals used for voltage snapping
-_V_NOMINALS = (110.0, 120.0, 220.0, 230.0, 240.0, 277.0, 347.0, 400.0, 415.0)
+# Includes common MV levels (6.6 kV, 11 kV, 33 kV class) so scale detection
+# recognises genuine MV readings and does not try to rescale them.
+_V_NOMINALS = (
+    110.0, 120.0, 220.0, 230.0, 240.0, 277.0, 347.0, 400.0, 415.0,
+    # MV: 6.6 kV, 11 kV (L-L), 11 kV/√3 (L-N), 33 kV
+    6_600.0, 6_350.0, 11_000.0, 6_351.0, 33_000.0,
+)
 
 # Candidate scale multipliers tried in order
 _SCALE_TRIES = (1.0, 0.001, 1_000.0, 0.01, 100.0)
@@ -55,9 +65,16 @@ def _modified_z(arr: np.ndarray) -> np.ndarray:
     """Iglewicz & Hoaglin (1993) modified Z-score — robust to outlier presence."""
     med = np.nanmedian(arr)
     mad = np.nanmedian(np.abs(arr - med))
-    if mad < 1e-10:
+    
+    # Enforce a practical minimum MAD to prevent very tight clusters from
+    # causing normal step-changes (e.g., load switching) to be flagged as outliers.
+    # We assume at least 1% natural variation or 0.01 absolute, whichever is larger.
+    min_mad = max(0.01, abs(float(med)) * 0.01)
+    
+    if mad < min_mad:
         std = np.nanstd(arr)
-        mad = std * 0.6745 if std > 1e-10 else 1e-10
+        mad = std * 0.6745 if std > min_mad else min_mad
+        
     return 0.6745 * (arr - med) / mad
 
 

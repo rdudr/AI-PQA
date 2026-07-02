@@ -1,0 +1,94 @@
+Date:
+Time:
+U12 RMS 1/2 cycle MIN
+U12 RMS
+U12 RMS 1/2 cycle MAX
+U23 RMS 1/2 cycle MIN
+U23 RMS
+U23 RMS 1/2 cycle MAX
+U31 RMS 1/2 cycle MIN
+U31 RMS
+U31 RMS 1/2 cycle MAX
+V1 RMS 1/2 cycle MIN
+V1 RMS
+V1 RMS 1/2 cycle MAX
+V2 RMS 1/2 cycle MIN
+V2 RMS
+V2 RMS 1/2 cycle MAX
+V3 RMS 1/2 cycle MIN
+V3 RMS
+V3 RMS 1/2 cycle MAX
+A1 RMS 1/2 cycle MIN
+A1 RMS
+A1 RMS 1/2 cycle MAX
+A2 RMS 1/2 cycle MIN
+A2 RMS
+A2 RMS 1/2 cycle MAX
+A3 RMS 1/2 cycle MIN
+A3 RMS
+A3 RMS 1/2 cycle MAX
+AN RMS 1/2 cycle MIN
+AN RMS
+AN RMS 1/2 cycle MAX
+U12 CF
+U23 CF
+U31 CF
+V1 CF
+V2 CF
+V3 CF
+A1 CF
+A2 CF
+A3 CF
+AN CF
+F
+Vunb (u2)
+Aunb (u2)
+Uunb (IEEE 112)
+Vunb (IEEE 112)
+Aunb (IEEE 112)
+Pst1
+Pst2
+Pst3
+FHL1
+FHL2
+FHL3
+FK1
+FK2
+FK3
+P1 (W)
+P2 (W)
+P3 (W)
+PT (W)
+Q1 (var)
+Q2 (var)
+Q3 (var)
+QT (var)
+S1 (VA)
+S2 (VA)
+S3 (VA)
+ST (VA)
+D1 (var)
+D2 (var)
+D3 (var)
+DT (var)
+PF1
+PF2
+PF3
+PFT
+Cos φ1 (DPF)
+Cos φ2 (DPF)
+Cos φ3 (DPF)
+Cos φT (DPF)
+Tan φ1
+Tan φ2
+Tan φ3
+Tan φT
+V1 THDf
+V2 THDf
+V3 THDf
+U12 THDf
+U23 THDf
+U31 THDf
+A1 THDf
+A2 THDf
+A3 THDf

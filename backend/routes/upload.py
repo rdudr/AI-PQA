@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from models.schema import AuditMetadata, ProcessResponse, TablePageResponse
 from services import db
 from services.config_store import get_custom_columns, get_mappings
-from services.processing import _rows_from_df, _scale_power_columns, process_bytes
+from services.processing import _rows_from_df, _scale_power_columns, _apply_device_voltage_multiplier, process_bytes
 from services.session_store import session_store
 from services.table_query import (
     apply_table_filters,
@@ -18,6 +18,7 @@ from services.table_query import (
     sort_frame,
 )
 from parsers.preprocess import prepare_tabular_export
+from parsers.base import robust_to_datetime
 
 router = APIRouter(tags=["upload"])
 
@@ -292,12 +293,23 @@ def _apply_mappings_to_dataframe(
             col_data = col_data.iloc[:, 0]
         return col_data.reset_index(drop=True)
 
+    # Track which standard columns need kA → A conversion (×1000).
+    # This captures any column whose original header contains "(KA)" — e.g.
+    # "IRMS(KA) L1 AVG" from KM 2400 — regardless of device model.
+    _KA_CURRENT_STANDARDS = {
+        "current_phase_a", "current_phase_b", "current_phase_c",
+    }
+    _ka_cols: set[str] = set()   # standard column names that need ×1000
+
     for norm_col, (standard_col, raw_col_orig, sheet_name) in col_to_source.items():
         source_df = sheet_lookup.get(sheet_name)
         if source_df is None or raw_col_orig not in source_df.columns:
             continue
         # Keep as pandas Series; rebuild index so concat aligns positionally
         result_series[standard_col] = _as_series(source_df, raw_col_orig)
+        # Detect kA unit in the original column name (case-insensitive, any bracket style)
+        if standard_col in _KA_CURRENT_STANDARDS and "ka" in raw_col_orig.lower().replace("(", "").replace(")", ""):
+            _ka_cols.add(standard_col)
 
     # ── Custom columns: same raw column name on different sheet → different std column
     for cc in (custom_cols or []):
@@ -328,9 +340,19 @@ def _apply_mappings_to_dataframe(
             continue
 
         result_series[map_to] = _as_series(source_df, matched_col)
+        # Check if this custom column also came from a kA source
+        if map_to in _KA_CURRENT_STANDARDS and "ka" in raw_name.lower().replace("(", "").replace(")", ""):
+            _ka_cols.add(map_to)
 
     if not result_series:
         raise ValueError("No mapped columns found in data")
+
+    # Apply kA → A conversion (×1000) for any current column sourced from a
+    # "(KA)" header.  This normalises the standard unit to Amperes regardless
+    # of whether the device chose to export in kA or A.
+    for col in _ka_cols:
+        if col in result_series:
+            result_series[col] = pd.to_numeric(result_series[col], errors="coerce") * 1000.0
 
     # pd.concat handles ragged column lengths via NaN padding internally — way
     # faster than building Python lists and appending None in a loop.
@@ -361,9 +383,8 @@ def _apply_mappings_to_dataframe(
         time_col = output_df.get("time")
         if date_col is not None and time_col is not None:
             # Merge date and time columns, converting to ISO format string
-            combined_dt = pd.to_datetime(
+            combined_dt = robust_to_datetime(
                 date_col.astype(str).str.strip() + " " + time_col.astype(str).str.strip(),
-                errors="coerce",
                 utc=False
             )
             # Convert to ISO format string for consistent display
@@ -450,20 +471,47 @@ def _normalize_date_time_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 @router.post("/process", response_model=ProcessResponse)
 async def process_upload(
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(...),
     metadata: str = Form(...),
+    file_models: str = Form("[]"),
 ) -> ProcessResponse:
     try:
         meta = AuditMetadata.model_validate_json(metadata)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=422, detail=f"Invalid metadata: {exc}") from exc
 
-    raw = await file.read()
-    if not raw:
-        raise HTTPException(status_code=400, detail="Empty upload.")
+    if not files:
+        raise HTTPException(status_code=400, detail="No files uploaded.")
+
+    import json
+    try:
+        models_list = json.loads(file_models)
+        if not isinstance(models_list, list):
+            models_list = []
+    except Exception:
+        models_list = []
+
+    # Align models list length to files count, defaulting to global selection if missing
+    while len(models_list) < len(files):
+        models_list.append(meta.pq_analyzer_type)
+
+    files_data = []
+    for f, m_name in zip(files, models_list):
+        raw = await f.read()
+        if not raw:
+            continue
+        files_data.append({
+            "filename": f.filename or "measurement.csv",
+            "raw_bytes": raw,
+            "model_name": m_name or meta.pq_analyzer_type
+        })
+
+    if not files_data:
+        raise HTTPException(status_code=400, detail="All uploaded files were empty.")
 
     try:
-        return process_bytes(file.filename or "measurement.csv", raw, meta)
+        from services.processing import process_multiple_files
+        return process_multiple_files(files_data, meta)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
@@ -633,6 +681,7 @@ async def download_normalized_excel(
             custom_cols=custom_cols,
         )
         output_df = _scale_power_columns(output_df)
+        output_df = _apply_device_voltage_multiplier(output_df, model_name)
 
         # Create Excel file in memory
         output_buffer = io.BytesIO()

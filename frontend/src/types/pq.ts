@@ -9,6 +9,7 @@ export interface AuditMetadata {
   machine_name: string
   engineer_name: string
   audit_date: string
+  custom_fields?: Record<string, any>
 }
 
 // Allow any standardized column the user mapped to flow through

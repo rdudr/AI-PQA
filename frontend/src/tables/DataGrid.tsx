@@ -48,9 +48,11 @@ type Props = {
   sessionId: string
   companyName?: string
   auditDate?: string
+  pqName?: string
+  machineName?: string
 }
 
-export function DataGrid({ sessionId, companyName, auditDate }: Props) {
+export function DataGrid({ sessionId, companyName, auditDate, pqName, machineName }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -193,7 +195,13 @@ export function DataGrid({ sessionId, companyName, auditDate }: Props) {
             className="sm:w-64"
           />
           <Button variant="secondary" type="button" asChild>
-            <a href={exportHref} download={buildDownloadName(companyName, 'csv', auditDate)}>
+            <a href={exportHref} download={buildDownloadName({
+              company: companyName,
+              pqName,
+              machineName,
+              dateInput: auditDate,
+              ext: 'csv'
+            })}>
               <Download className="size-4" />
               Export CSV
             </a>

@@ -6,6 +6,7 @@ import io
 import pandas as pd
 
 from parsers.preprocess import prepare_tabular_export
+from parsers.base import robust_to_datetime
 
 
 def _read_csv_ragged(raw: bytes) -> pd.DataFrame:
@@ -37,7 +38,7 @@ def _unify_datetime(df: pd.DataFrame) -> pd.DataFrame:
     if date_col and time_col:
         combined = df[date_col].astype(str) + " " + df[time_col].astype(str)
         df = df.copy()
-        df["_sync_ts"] = pd.to_datetime(combined, errors="coerce")
+        df["_sync_ts"] = robust_to_datetime(combined)
         return df.dropna(subset=["_sync_ts"])
     return df
 
@@ -74,7 +75,7 @@ def _merge_plain_sheets(sheets: list[pd.DataFrame]) -> pd.DataFrame | None:
         ts_col = _find_ts_col(df)
         if ts_col:
             tmp = df.copy()
-            tmp["_ts_key"] = pd.to_datetime(tmp[ts_col], errors="coerce")
+            tmp["_ts_key"] = robust_to_datetime(tmp[ts_col])
             tmp = tmp.dropna(subset=["_ts_key"])
             if not tmp.empty:
                 keyed.append(tmp)

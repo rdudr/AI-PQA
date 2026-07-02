@@ -21,6 +21,7 @@ const NAV: NavItem[] = [
   { to: '/cost',       label: 'Cost' },
   { to: '/energy',     label: 'Energy' },
   { to: '/health',     label: 'Health' },
+  { to: '/settings',   label: 'Settings', adminOnly: true },
 ]
 
 export function MainLayout() {

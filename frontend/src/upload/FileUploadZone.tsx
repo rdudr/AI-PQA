@@ -162,6 +162,7 @@ export function FileUploadZone({
           id="pq-file-input"
           type="file"
           accept={accept}
+          multiple
           className="hidden"
           disabled={disabled}
           onChange={(e) => {

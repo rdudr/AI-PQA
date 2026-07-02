@@ -13,6 +13,7 @@ import { EquipmentHealthPage } from '@/pages/EquipmentHealthPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { SettingsPage } from '@/pages/SettingsPage'
 import { UploadPage } from '@/pages/UploadPage'
 
 export default function App() {
@@ -39,6 +40,10 @@ export default function App() {
               <Route
                 path="upload"
                 element={<RequireAuth><UploadPage /></RequireAuth>}
+              />
+              <Route
+                path="settings"
+                element={<RequireAuth role="admin"><SettingsPage /></RequireAuth>}
               />
               <Route
                 path="config/:modelName"

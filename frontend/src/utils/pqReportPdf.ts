@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
+import * as echarts from 'echarts'
 
 import type { AnalyticsPayload, AuditMetadata, HarmonicSpectrumPoint, MetricBlock } from '@/types/pq'
 
@@ -309,6 +310,17 @@ export async function exportPqReportPdf(params: {
     // chart's real aspect ratio below so nothing looks stretched.
     const maxChartH = 300
 
+    const instances: echarts.ECharts[] = []
+    document.querySelectorAll('.echarts-for-react').forEach((node) => {
+      const chart = echarts.getInstanceByDom(node as HTMLElement)
+      if (chart) {
+        chart.setOption({ toolbox: { show: false } })
+        instances.push(chart)
+      }
+    })
+
+    await new Promise((r) => setTimeout(r, 100))
+
     for (const el of chartElements) {
       const canvas = await html2canvas(el, {
         scale: 2,
@@ -339,6 +351,8 @@ export async function exportPqReportPdf(params: {
       pdf.addImage(img, 'PNG', x, y, drawW, drawH)
       y += drawH + 20
     }
+
+    instances.forEach((chart) => chart.setOption({ toolbox: { show: true } }))
   }
 
   const totalPages = pdf.getNumberOfPages()

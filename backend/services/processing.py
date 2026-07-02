@@ -18,7 +18,7 @@ from services.config_store import get_custom_columns, get_mappings
 from services.session_store import session_store
 from utils.io import load_dataframe
 
-MAX_RETURN_ROWS = 8000
+MAX_RETURN_ROWS = 250000
 _POWER_COLUMN_PATTERN = re.compile(r"(^|_)(nkvar|dkvar|kvar|kva|kw)(_|$)")
 
 
@@ -124,6 +124,36 @@ def _scale_power_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Device models that are single-phase loggers and require voltage to be
+# multiplied by √3 (1.732) to convert VLN (phase-to-neutral) → VLL (line-to-line).
+_SINGLE_PHASE_LOGGER_MODELS = {"km 2400", "km2400"}
+
+_SQRT3 = 1.7320508075688772   # math.sqrt(3)
+
+_V_COLUMNS = ("voltage_phase_a", "voltage_phase_b", "voltage_phase_c")
+
+
+def _apply_device_voltage_multiplier(df: pd.DataFrame, pq_analyzer_type: str) -> pd.DataFrame:
+    """Apply a ×√3 multiplier to voltage columns for single-phase logger devices.
+
+    KM 2400 (and similar single-phase loggers) record the phase-to-neutral
+    voltage (VLN).  Industrial PQ analysis and the dashboard voltage graph
+    always display line-to-line voltage (VLL = VLN × √3).  This step converts
+    the stored values so all downstream code sees VLL, just like a proper
+    three-phase analyser would export.
+    """
+    slug = "".join(ch for ch in str(pq_analyzer_type).strip().lower() if ch.isalnum() or ch == " ").strip()
+    if slug not in _SINGLE_PHASE_LOGGER_MODELS:
+        return df
+
+    v_cols = [c for c in _V_COLUMNS if c in df.columns]
+    for c in v_cols:
+        df[c] = pd.to_numeric(df[c], errors="coerce") * _SQRT3
+
+    return df
+
+
+
 def _rows_from_df(df: pd.DataFrame) -> list[PQRow]:
     # Normalize Excel serial date/time columns before any other processing
     from routes.upload import _normalize_date_time_cols
@@ -187,6 +217,8 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
     del raw
 
     normalized = _scale_power_columns(normalized)
+    normalized = _apply_device_voltage_multiplier(normalized, metadata.pq_analyzer_type)
+
 
     normalized = normalized.dropna(how="all")
     if normalized.empty:
@@ -241,3 +273,174 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
     db.save_summary(response.model_dump())
 
     return response
+
+
+def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> ProcessResponse:
+    import gc
+    parsed_dfs = []
+    device_transitions = []
+
+    # Parse each file
+    for entry in files_data:
+        filename = entry["filename"]
+        raw = entry["raw_bytes"]
+        model_name = entry["model_name"]
+
+        normalized = None
+        user_mappings = get_mappings(model_name)
+        user_custom_cols = get_custom_columns(model_name)
+        if user_mappings or user_custom_cols:
+            try:
+                from routes.upload import _apply_mappings_to_dataframe, _read_all_pages_for_mapping
+                pages = _read_all_pages_for_mapping(filename, raw)
+                if pages:
+                    normalized = _apply_mappings_to_dataframe(
+                        pages,
+                        user_mappings,
+                        source_pages=None,
+                        custom_cols=user_custom_cols,
+                    )
+                del pages
+                gc.collect()
+            except Exception:
+                normalized = None
+
+        if normalized is None:
+            raw_df = load_dataframe(filename, raw)
+            parser = get_parser(model_name)
+            normalized = parser.normalize(raw_df)
+            del raw_df
+            gc.collect()
+
+        del raw
+
+        normalized = _scale_power_columns(normalized)
+        normalized = _apply_device_voltage_multiplier(normalized, model_name)
+        normalized = normalized.dropna(how="all")
+
+        if not normalized.empty:
+            # Sort individual file timestamps
+            if "timestamp" in normalized.columns:
+                from parsers.base import robust_to_datetime
+                normalized["_dt"] = robust_to_datetime(normalized["timestamp"])
+                normalized = normalized.dropna(subset=["_dt"]).sort_values("_dt")
+                if not normalized.empty:
+                    start_t = normalized["timestamp"].iloc[0]
+                    end_t = normalized["timestamp"].iloc[-1]
+                    device_transitions.append({
+                        "file": filename,
+                        "model": model_name,
+                        "start": str(start_t),
+                        "end": str(end_t)
+                    })
+                normalized = normalized.drop(columns=["_dt"], errors="ignore")
+            parsed_dfs.append(normalized)
+
+    if not parsed_dfs:
+        raise ValueError("No recognizable PQ measurements in any uploaded file.")
+
+    # Merge sequentially
+    combined = pd.concat(parsed_dfs, ignore_index=True)
+    
+    # Sort globally by timestamp
+    if "timestamp" in combined.columns:
+        from parsers.base import robust_to_datetime
+        combined["_dt"] = robust_to_datetime(combined["timestamp"])
+        combined = combined.dropna(subset=["_dt"]).sort_values("_dt").reset_index(drop=True)
+        # Deduplicate overlapping timestamps
+        combined = combined.drop_duplicates(subset=["_dt"], keep="first")
+        # Format timestamps consistently to ISO string format
+        combined["timestamp"] = combined["_dt"].dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Gap detection
+        time_diffs = combined["_dt"].diff()
+        valid_diffs = time_diffs[time_diffs > pd.Timedelta(0)]
+        expected_interval = valid_diffs.min() if not valid_diffs.empty else pd.Timedelta(minutes=1)
+        
+        # If the gap is larger than 10 mins or 5x the expected logging interval
+        gap_threshold = max(pd.Timedelta(minutes=10), 5 * expected_interval)
+        gap_indices = time_diffs[time_diffs > gap_threshold].index
+        
+        gaps = []
+        for idx in gap_indices:
+            gap_start = combined.loc[idx - 1, "timestamp"]
+            gap_end = combined.loc[idx, "timestamp"]
+            dur = int((combined.loc[idx, "_dt"] - combined.loc[idx - 1, "_dt"]).total_seconds())
+            gaps.append({
+                "start": gap_start,
+                "end": gap_end,
+                "duration_seconds": dur
+            })
+            
+        combined = combined.drop(columns=["_dt"], errors="ignore")
+    else:
+        gaps = []
+
+    # Calculate kvar if missing
+    if "kvar" not in combined.columns or combined["kvar"].isna().all():
+        if "kw" in combined.columns and "kva" in combined.columns:
+            s_sq = combined["kva"] ** 2
+            p_sq = combined["kw"] ** 2
+            q_sq = np.maximum(0, s_sq - p_sq)
+            combined["kvar"] = np.sqrt(q_sq)
+
+    # ML normalization
+    normalizer = PQNormalizer()
+    normalized, quality_report = normalizer.fit_transform(combined)
+    data_quality = DataQualityReport(**quality_report)
+
+    analytics = compute_analytics(normalized)
+    observations = build_ai_observations(normalized, analytics)
+    dip_swell_events, nominal_v = build_dip_swell_monitoring(normalized)
+
+    # Enhance AI observations with gap alerts if present
+    if gaps:
+        for gap in gaps:
+            gap_dur_min = round(gap["duration_seconds"] / 60)
+            observations.append(
+                f"Power Quality tracking interrupted between {gap['start']} and {gap['end']} "
+                f"({gap_dur_min} minutes). Potential power outage or device down period."
+            )
+
+    sampled = _sample_evenly(normalized, MAX_RETURN_ROWS)
+    rows = _rows_from_df(sampled)
+
+    v_spectrum = _generate_harmonic_spectrum(normalized, is_current=False)
+    i_spectrum = _generate_harmonic_spectrum(normalized, is_current=True)
+
+    session_id = str(uuid.uuid4())
+    session_store.put(session_id, normalized)
+
+    # Construct joint filename representation
+    joint_filename = " + ".join(f["filename"] for f in files_data)
+    if len(joint_filename) > 100:
+        joint_filename = f"{len(files_data)} files merged"
+
+    # Add transition metadata to custom_fields
+    if device_transitions or gaps:
+        metadata = metadata.model_copy()
+        metadata.custom_fields = {
+            "device_transitions": device_transitions,
+            "power_off_gaps": gaps
+        }
+
+    response = ProcessResponse(
+        session_id=session_id,
+        metadata=metadata,
+        filename=joint_filename,
+        total_rows=int(len(normalized)),
+        returned_rows=len(rows),
+        rows=rows,
+        columns=[str(c) for c in normalized.columns],
+        analytics=analytics,
+        voltage_harmonic_spectrum=v_spectrum,
+        current_harmonic_spectrum=i_spectrum,
+        ai_observations=observations,
+        nominal_voltage=nominal_v,
+        dip_swell_events=dip_swell_events,
+        data_quality=data_quality,
+    )
+
+    db.save_summary(response.model_dump())
+    return response
+

@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Settings, Trash2, ChevronDown } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Trash2 } from 'lucide-react'
 
 import { saveSession } from '@/utils/sessionDb'
 import type { AuditMetadata } from '@/types/pq'
 import type { PQModel } from '@/types/config'
 import { processUpload } from '@/services/api'
-import { fetchModels, addModel, deleteModel } from '@/services/configApi'
+import { fetchModels } from '@/services/configApi'
 import { useNotifications } from '@/contexts/NotificationContext'
-import { useAuth } from '@/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,9 +24,9 @@ function todayIsoDate() {
 export function UploadPage() {
   const navigate = useNavigate()
   const { push } = useNotifications()
-  const { isAdmin } = useAuth()
 
-  const [file, setFile] = useState<File | null>(null)
+
+  const [files, setFiles] = useState<{ file: File; model: string }[]>([])
   const [progress, setProgress] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -53,13 +52,8 @@ export function UploadPage() {
     return () => clearInterval(timer)
   }, [isProcessing])
 
-  // PQ model dropdown state
+  // PQ model list for dropdown options
   const [models, setModels] = useState<PQModel[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('')
-  const [dropOpen, setDropOpen] = useState(false)
-  const [addingNew, setAddingNew] = useState(false)
-  const [newName, setNewName] = useState('')
-  const dropRef = useRef<HTMLDivElement>(null)
 
   const [meta, setMeta] = useState<AuditMetadata>({
     pq_analyzer_type: '',
@@ -76,83 +70,26 @@ export function UploadPage() {
     setLoadingModels(true)
     fetchModels().then(m => {
       setModels(m)
-      const visible = m.filter(item => item.has_config || isAdmin)
-      if (visible.length > 0) {
-        setSelectedModel(visible[0].name)
-        setMeta(prev => ({ ...prev, pq_analyzer_type: visible[0].name }))
-      }
     }).catch((err) => {
       // eslint-disable-next-line no-console
       console.error('[PQ] Failed to load models from API:', err)
     }).finally(() => {
       setLoadingModels(false)
     })
-  }, [isAdmin])
+  }, [])
 
   useEffect(() => {
     loadModelsList()
   }, [loadModelsList])
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
-        setDropOpen(false)
-        setAddingNew(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const selectedModelInfo = models.find((m) => m.name === selectedModel)
-
-  const handleSelectModel = (name: string) => {
-    setSelectedModel(name)
-    setMeta((m) => ({ ...m, pq_analyzer_type: name as AuditMetadata['pq_analyzer_type'] }))
-    setDropOpen(false)
-    setAddingNew(false)
-  }
-
-  const handleAddNew = async () => {
-    const name = newName.trim()
-    if (!name) return
-    try {
-      const created = await addModel(name)
-      setModels((prev) => [...prev, created])
-      handleSelectModel(name)
-      setAddingNew(false)
-      setNewName('')
-      setDropOpen(false)
-      push('success', 'PQ model added', `"${name}" has been added. Configure it before uploading.`)
-    } catch (e) {
-      push('error', 'Could not add model', String(e))
-    }
-  }
-
-  const handleDelete = async (name: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    try {
-      await deleteModel(name)
-      setModels((prev) => prev.filter((m) => m.name !== name))
-      if (selectedModel === name) {
-        setSelectedModel('other')
-        setMeta((m) => ({ ...m, pq_analyzer_type: 'other' }))
-      }
-      push('info', 'PQ model removed', `"${name}" and its configuration have been deleted.`)
-    } catch (e) {
-      push('error', 'Could not remove model', String(e))
-    }
-  }
-
   const previewRows = useMemo(
-    () => (file ? `${file.name} · ${(file.size / 1024).toFixed(1)} KB` : 'No file yet'),
-    [file],
+    () => (files.length > 0 ? `${files.length} file(s) ready to process` : 'No files yet'),
+    [files],
   )
 
   const submit = async () => {
     setError(null)
-    if (!file) { setError('Attach a measurement file to continue.'); return }
+    if (files.length === 0) { setError('Attach at least one measurement file to continue.'); return }
     if (!meta.company_name.trim() || !meta.plant_name.trim()) {
       setError('Company and plant names are required.')
       return
@@ -162,7 +99,11 @@ export function UploadPage() {
     setDisplayProgress(0)
     setIsProcessing(false)
     try {
-      const payload = await processUpload(file, meta, (pct) => {
+      const uniqueModels = Array.from(new Set(files.map(f => f.model).filter(m => m !== 'Auto-detect')))
+      const modelString = uniqueModels.length > 0 ? uniqueModels.join(', ') : 'Auto-detect'
+      const finalMeta = { ...meta, pq_analyzer_type: modelString }
+
+      const payload = await processUpload(files, finalMeta, (pct) => {
         setProgress(pct)
         if (pct < 100) {
           setDisplayProgress(Math.round(pct * 0.9))
@@ -191,7 +132,7 @@ export function UploadPage() {
         push(
           score >= 80 ? 'success' : score >= 60 ? 'warning' : 'error',
           'Data quality score',
-          `${score.toFixed(0)}/100 for "${file.name}"`,
+          `${score.toFixed(0)}/100 for merged files`,
         )
       }
 
@@ -213,12 +154,6 @@ export function UploadPage() {
     }
   }
 
-  // Filter models: only show configured models to normal users.
-  // Admins see all models (so they can configure them).
-  const visibleModels = useMemo(() => {
-    return models.filter((m) => m.has_config || isAdmin)
-  }, [models, isAdmin])
-
   // ── Full-screen loading for all async operations ─────────────────────────
   if (loadingModels) {
     return <Loading3D fullScreen message="Loading PQ models..." />
@@ -239,7 +174,7 @@ export function UploadPage() {
         <p className="text-xs uppercase tracking-[0.28em] text-[#10375c]/55">Phase 2 · Measurement intake</p>
         <h1 className="mt-2 text-3xl font-semibold text-[#10375c]">Upload PQ analyzer export</h1>
         <p className="mt-2 max-w-2xl text-sm text-[#10375c]/70">
-          Select your PQ model below. Add new models from the dropdown, configure column mappings, then upload your file.
+          Upload power quality export files. You can select the specific analyzer model for each file below, or choose Auto-detect. Mappings and models can be managed in the Settings tab.
         </p>
       </motion.div>
 
@@ -254,10 +189,62 @@ export function UploadPage() {
             <FileUploadZone
               disabled={busy}
               error={error}
-              file={file}
-              onClear={() => { setError(null); setFile(null) }}
-              onFiles={(files) => { setError(null); setFile(files[0] ?? null) }}
+              file={null}
+              onFiles={(newFiles) => {
+                setError(null)
+                setFiles((prev) => {
+                  const added = newFiles.map((f) => ({
+                    file: f,
+                    model: 'Auto-detect',
+                  }))
+                  return [...prev, ...added]
+                })
+              }}
             />
+
+            {files.length > 0 && (
+              <div className="mt-6 space-y-3">
+                <h3 className="text-sm font-semibold tracking-wider uppercase text-[#10375c]/60">Uploaded Files ({files.length})</h3>
+                <div className="divide-y divide-[#10375c]/08 rounded-2xl border border-[#10375c]/10 bg-white/50 overflow-hidden shadow-sm">
+                  {files.map((item, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 hover:bg-[#f4f6ff]/40 transition">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-[#10375c]">{item.file.name}</p>
+                        <p className="text-[11px] text-[#10375c]/55">{(item.file.size / 1024).toFixed(1)} KB</p>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={item.model}
+                          onChange={(e) => {
+                            const updated = [...files]
+                            updated[idx].model = e.target.value
+                            setFiles(updated)
+                          }}
+                          className="rounded-lg border border-[#10375c]/15 bg-white px-2 py-1.5 text-xs text-[#10375c] shadow-sm focus:outline-none focus:ring-1 focus:ring-[#10375c]/30"
+                        >
+                          <option value="Auto-detect">Auto-detect model</option>
+                          {models.map(m => (
+                            <option key={m.name} value={m.name}>{m.name}</option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFiles((prev) => prev.filter((_, i) => i !== idx))
+                          }}
+                          className="rounded-lg p-1.5 text-[#10375c]/55 hover:bg-red-50 hover:text-red-500 transition cursor-pointer"
+                          title="Remove file"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -269,145 +256,15 @@ export function UploadPage() {
           </CardHeader>
           <CardContent className="space-y-4">
 
-            {/* ── Smart PQ model dropdown ─────────────────────────────── */}
+            {/* ── Files count in queue ─────────────────────────────── */}
             <div className="space-y-2">
-              <Label>PQ Analyzer Model</Label>
-              <div ref={dropRef} className="relative">
-                {/* Trigger */}
-                <button
-                  type="button"
-                  onClick={() => setDropOpen((v) => !v)}
-                  className="flex w-full items-center justify-between rounded-xl border border-[#10375c]/15 bg-white px-3 py-2 text-sm text-[#10375c] shadow-sm hover:bg-[#f4f6ff]"
-                >
-                  <span className="flex items-center gap-2">
-                    <span className={`size-2 rounded-full ${selectedModelInfo?.has_config ? 'bg-emerald-500' : 'bg-[#10375c]/20'}`} />
-                    {selectedModel || 'Select model'}
-                  </span>
-                  <ChevronDown className="size-4 opacity-50" />
-                </button>
-
-                {/* Panel */}
-                <AnimatePresence>
-                  {dropOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 4 }}
-                      className="absolute left-0 right-0 top-full z-50 mt-1 rounded-xl border border-[#10375c]/12 bg-white shadow-lg"
-                    >
-                      <div className="max-h-64 overflow-y-auto p-1">
-                        {/* Unified list of visible models */}
-                        {visibleModels.map((m) => (
-                          <div
-                            key={m.name}
-                            onClick={() => handleSelectModel(m.name)}
-                            className={`group flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-sm hover:bg-[#f4f6ff] ${selectedModel === m.name ? 'bg-[#f4f6ff] font-medium' : ''}`}
-                          >
-                            <span className="flex items-center gap-2">
-                              <span className={`size-2 rounded-full ${m.has_config ? 'bg-emerald-500' : 'bg-yellow-400'}`} />
-                              {m.name}
-                              {!m.has_config && <span className="text-[10px] text-orange-500">(not configured)</span>}
-                            </span>
-                            {isAdmin && (
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setDropOpen(false); navigate(`/config/${encodeURIComponent(m.name)}`) }}
-                                  className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-[#10375c]"
-                                  title="Configure"
-                                >
-                                  <Settings className="size-3.5" />
-                                </button>
-                                {!m.is_builtin && (
-                                  <button
-                                    onClick={(e) => handleDelete(m.name, e)}
-                                    className="rounded-md p-1 text-[#10375c]/50 hover:bg-white hover:text-red-500"
-                                    title="Remove"
-                                  >
-                                    <Trash2 className="size-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-
-                        {/* If API succeeded but there are no visible models (e.g. none configured for standard user) */}
-                        {models.length > 0 && visibleModels.length === 0 && (
-                          <div className="mx-3 my-2 text-[11px] text-amber-800">
-                            No PQ models have been configured yet. Please ask the administrator to configure a model.
-                          </div>
-                        )}
-
-                        {/* Empty-state hint — visible only when the API returned no models at all.
-                            Surfaces the most common production cause: backend hasn't redeployed yet. */}
-                        {models.length === 0 && (
-                          <div className="mx-3 my-2 rounded-lg border border-amber-200/70 bg-amber-50/70 p-2.5 text-[11px] text-amber-800">
-                            <p className="font-semibold">No PQ models available from the API.</p>
-                            <p className="mt-1 leading-snug">
-                              The backend may still be redeploying. Wait 1–2 minutes and retry — or
-                              {isAdmin ? ' add a new model below to continue.' : ' ask the administrator to add one.'}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                loadModelsList()
-                              }}
-                              className="mt-2 rounded bg-amber-600 px-2.5 py-1 text-[10px] font-semibold text-white hover:bg-amber-700 transition active:scale-95 cursor-pointer"
-                            >
-                              Retry connection
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Add new */}
-                        {isAdmin && (
-                          <>
-                            <div className="mx-3 my-1 border-t border-[#10375c]/08" />
-                            {!addingNew ? (
-                              <button
-                                onClick={() => setAddingNew(true)}
-                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#10375c] hover:bg-[#f4f6ff]"
-                              >
-                                <Plus className="size-4" /> Add new PQ model
-                              </button>
-                            ) : (
-                              <div className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  autoFocus
-                                  className="mb-2 w-full rounded-lg border border-[#10375c]/20 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#10375c]/30"
-                                  placeholder="e.g. Megger MPQ2000"
-                                  value={newName}
-                                  onChange={(e) => setNewName(e.target.value)}
-                                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddNew(); if (e.key === 'Escape') { setAddingNew(false); setNewName('') } }}
-                                />
-                                <div className="flex gap-2">
-                                  <button onClick={handleAddNew} className="flex-1 rounded-lg bg-[#10375c] px-2 py-1 text-xs font-medium text-white hover:bg-[#10375c]/90">
-                                    Add model
-                                  </button>
-                                  <button onClick={() => { setAddingNew(false); setNewName('') }} className="rounded-lg border px-2 py-1 text-xs text-[#10375c]/60 hover:bg-[#f4f6ff]">
-                                    Cancel
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+              <Label>Files in Queue</Label>
+              <div className="flex items-center justify-between rounded-xl border border-[#10375c]/15 bg-[#f4f6ff]/40 px-3 py-2 text-sm text-[#10375c] shadow-sm">
+                <span className="font-semibold">Total files to process</span>
+                <span className="rounded-full bg-[#10375c] px-2.5 py-0.5 text-xs font-bold text-white">
+                  {files.length} {files.length === 1 ? 'file' : 'files'}
+                </span>
               </div>
-
-              {/* Configure shortcut if model has no config */}
-              {isAdmin && selectedModelInfo && !selectedModelInfo.has_config && (
-                <button
-                  onClick={() => navigate(`/config/${encodeURIComponent(selectedModel)}`)}
-                  className="mt-1 flex items-center gap-1 text-xs text-orange-600 hover:underline"
-                >
-                  <Settings className="size-3" /> Configure column mappings for this model
-                </button>
-              )}
             </div>
 
             {/* ── Rest of metadata fields ──────────────────────────────── */}

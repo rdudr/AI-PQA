@@ -14,7 +14,6 @@ import {
   LayoutDashboard,
   Download,
   Play,
-  Plus,
   Printer,
   Square,
   Timer,
@@ -448,16 +447,36 @@ export function DashboardPage() {
   }, [rows, mappedCols]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 1. Variation of Voltages ─────────────────────────────────────────────
-  const vOpts = useMemo(() => timeSeriesOption({
-    title: 'Variation of Voltages',
-    timestamps: ts,
-    yName: 'V',
-    series: [
-      { name: 'Va (R)', color: PHASE_COLORS.R, data: col('voltage_phase_a') },
-      { name: 'Vb (Y)', color: PHASE_COLORS.Y, data: col('voltage_phase_b') },
-      { name: 'Vc (B)', color: PHASE_COLORS.B, data: col('voltage_phase_c') },
-    ],
-  }), [rows, ts]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Auto-detect kV range: if the median voltage exceeds 1 000 V (e.g. PQ-1938
+  // measuring 11 328 V line-to-line) display in kV so the Y-axis stays readable.
+  const vIsKv = useMemo(() => {
+    const vals: number[] = []
+    for (const key of ['voltage_phase_a', 'voltage_phase_b', 'voltage_phase_c']) {
+      for (const r of rows) {
+        const v = Number(r[key])
+        if (Number.isFinite(v) && v > 0) vals.push(v)
+      }
+    }
+    if (vals.length === 0) return false
+    vals.sort((a, b) => a - b)
+    const median = vals[Math.floor(vals.length / 2)]
+    return median > 1000
+  }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vOpts = useMemo(() => {
+    const scale = vIsKv ? (v: number | null | undefined) => (v != null && Number.isFinite(Number(v)) ? Number(v) / 1000 : null) : (v: number | null | undefined) => v ?? null
+    return timeSeriesOption({
+      title: vIsKv ? 'Variation of Voltages (kV)' : 'Variation of Voltages',
+      timestamps: ts,
+      yName: vIsKv ? 'kV' : 'V',
+      series: [
+        { name: vIsKv ? 'Va kV (R)' : 'Va (R)', color: PHASE_COLORS.R, data: col('voltage_phase_a').map(scale) },
+        { name: vIsKv ? 'Vb kV (Y)' : 'Vb (Y)', color: PHASE_COLORS.Y, data: col('voltage_phase_b').map(scale) },
+        { name: vIsKv ? 'Vc kV (B)' : 'Vc (B)', color: PHASE_COLORS.B, data: col('voltage_phase_c').map(scale) },
+      ],
+    })
+  }, [rows, ts, vIsKv]) // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // ── 2. Variation of Current ──────────────────────────────────────────────
   const iOpts = useMemo(() => timeSeriesOption({
@@ -688,7 +707,13 @@ export function DashboardPage() {
         currentHarmonicSpectrum: data.current_harmonic_spectrum,
         aiObservations: data.ai_observations,
         chartElements,
-        saveAs: buildDownloadName(data.metadata.company_name, 'pdf', data.metadata.audit_date),
+        saveAs: buildDownloadName({
+          company: data.metadata.company_name,
+          pqName: data.metadata.pq_analyzer_type,
+          machineName: data.metadata.machine_name,
+          dateInput: data.metadata.audit_date,
+          ext: 'pdf'
+        }),
       })
     } finally {
       setPdfBusy(false)
@@ -702,7 +727,13 @@ export function DashboardPage() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = buildDownloadName(data.metadata.company_name, 'xlsx', data.metadata.audit_date)
+      link.download = buildDownloadName({
+        company: data.metadata.company_name,
+        pqName: data.metadata.pq_analyzer_type,
+        machineName: data.metadata.machine_name,
+        dateInput: data.metadata.audit_date,
+        ext: 'xlsx'
+      })
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -882,18 +913,23 @@ export function DashboardPage() {
             <p className="mt-2 max-w-3xl text-sm text-[#10375c]/70">
               {data.metadata.company_name} · {data.metadata.machine_name} · {data.metadata.engineer_name}
               <br />
-              Audit {data.metadata.audit_date} · Analyzer{' '}
-              <span className="font-semibold">{data.metadata.pq_analyzer_type}</span>
-              {' '}· File {data.filename} · {data.returned_rows} / {data.total_rows} rows
+              Audit {data.metadata.audit_date} · {data.metadata.custom_fields?.device_transitions?.length > 1 ? `${data.metadata.custom_fields?.device_transitions?.length} merged files` : `File ${data.filename}`} · {data.returned_rows} / {data.total_rows} rows
             </p>
+            {data.metadata.custom_fields?.device_transitions && (
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="font-semibold text-[#10375c]/70 flex items-center">Merged Sources:</span>
+                {data.metadata.custom_fields?.device_transitions?.map((dt: any, i: number) => (
+                  <span key={i} className="rounded-full bg-[#10375c]/08 border border-[#10375c]/10 px-2.5 py-0.5 text-[#10375c] font-medium shadow-sm">
+                    📄 {dt.file} <span className="text-[#10375c]/60">({dt.model})</span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="secondary" disabled={normalizedExcelBusy} onClick={downloadNormalizedExcel}>
               <Download className="size-4" />
               {normalizedExcelBusy ? 'Preparing Excel…' : 'Download normalized file'}
-            </Button>
-            <Button variant="secondary" asChild>
-              <Link to="/upload"><Plus className="size-4" /> Add file</Link>
             </Button>
             <Button type="button" variant="accent" disabled={pdfBusy} onClick={exportPdf}>
               <Printer className="size-4" /> Download audit PDF
@@ -1183,13 +1219,36 @@ export function DashboardPage() {
                   </span>
                 </div>
               </div>
+
+              {/* List of individual source files and models */}
+              {data.metadata.custom_fields?.device_transitions && (
+                <div className="mt-5 border-t border-[#10375c]/08 pt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#10375c]/60 mb-2.5">
+                    Combined Source Files &amp; Analyzer Models
+                  </h4>
+                  <div className="grid gap-2.5 sm:grid-cols-2">
+                    {data.metadata.custom_fields.device_transitions.map((dt: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between rounded-xl border border-[#10375c]/08 bg-white/40 p-3 hover:bg-white/60 transition shadow-sm">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-semibold text-[#10375c]">{dt.file}</p>
+                          <p className="text-[10px] text-[#10375c]/55 font-mono mt-0.5">{dt.start} to {dt.end}</p>
+                        </div>
+                        <div className="shrink-0 rounded-full bg-[#10375c]/08 border border-[#10375c]/10 px-2.5 py-0.5 text-[10px] font-bold text-[#10375c] ml-2">
+                          {dt.model}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}
 
         <div className="mt-8 mb-8">
-          <AnalyticsSummaryTable analytics={analytics} />
+          <AnalyticsSummaryTable analytics={analytics} voltageIsKv={vIsKv} />
         </div>
+
 
       </motion.section>
 
@@ -1452,6 +1511,8 @@ export function DashboardPage() {
         sessionId={data.session_id}
         companyName={data.metadata.company_name}
         auditDate={data.metadata.audit_date}
+        pqName={data.metadata.pq_analyzer_type}
+        machineName={data.metadata.machine_name}
       />
     </div>
   )

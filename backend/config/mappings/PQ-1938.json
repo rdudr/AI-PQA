@@ -12,7 +12,7 @@
   "I3_rms_AVG": "current_phase_c",
   "Freq_AVG": "frequency",
   "P_sum_AVG": "kw",
-  "P1_AVG": "kw",
+  "P1_AVG": "NA",
   "U12_rms1/2_MIN": "Urms12_min",
   "U23_rms1/2_MIN": "Urms23_min",
   "U31_rms1/2_MIN": "Urms31_min",

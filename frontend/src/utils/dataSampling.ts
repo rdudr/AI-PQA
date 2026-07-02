@@ -147,17 +147,7 @@ export function getOptimalSampling(dataSize: number): {
   maxPoints: number
   method: 'decimation' | 'lttb'
 } {
-  if (dataSize <= 1000) {
-    return { shouldSample: false, maxPoints: dataSize, method: 'decimation' }
-  }
-
-  if (dataSize <= 5000) {
-    return { shouldSample: true, maxPoints: 1000, method: 'decimation' }
-  }
-
-  if (dataSize <= 50000) {
-    return { shouldSample: true, maxPoints: 500, method: 'lttb' }
-  }
-
-  return { shouldSample: true, maxPoints: 250, method: 'lttb' }
+  // Always return shouldSample: false so ECharts receives the full high-resolution interval.
+  // This allows the user to zoom in and capture small differences as requested.
+  return { shouldSample: false, maxPoints: dataSize, method: 'decimation' }
 }

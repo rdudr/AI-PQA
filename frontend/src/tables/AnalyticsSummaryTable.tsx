@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Props {
   analytics: AnalyticsPayload
+  voltageIsKv?: boolean
 }
 
 function fmt(v: number | null | undefined, digits = 2) {
@@ -118,13 +119,22 @@ function MiniTable({ rows, title, icon: Icon, delay }: { rows: RowDef[], title: 
   )
 }
 
-export function AnalyticsSummaryTable({ analytics }: Props) {
+export function AnalyticsSummaryTable({ analytics, voltageIsKv = false }: Props) {
   const nullBlock = { min: null, max: null, avg: null, rms: null }
 
+  // Scale a MetricBlock by a divisor (e.g. 1000 to convert V → kV)
+  function scaleBlock(block: MetricBlock, div: number): MetricBlock {
+    const s = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v / div : null)
+    return { min: s(block.min), max: s(block.max), avg: s(block.avg), rms: block.rms != null ? s(block.rms) : null }
+  }
+
+  const vUnit = voltageIsKv ? 'kV' : 'V'
+  const vScaler = voltageIsKv ? (b: MetricBlock) => scaleBlock(b, 1000) : (b: MetricBlock) => b
+
   const voltageRows: RowDef[] = [
-    { label: 'Phase L1', block: analytics.voltage.phase_a, unit: 'V' },
-    { label: 'Phase L2', block: analytics.voltage.phase_b, unit: 'V' },
-    { label: 'Phase L3', block: analytics.voltage.phase_c, unit: 'V' },
+    { label: 'Phase L1', block: vScaler(analytics.voltage.phase_a), unit: vUnit },
+    { label: 'Phase L2', block: vScaler(analytics.voltage.phase_b), unit: vUnit },
+    { label: 'Phase L3', block: vScaler(analytics.voltage.phase_c), unit: vUnit },
   ]
 
   const currentRows: RowDef[] = [

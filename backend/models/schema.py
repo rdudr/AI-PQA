@@ -15,6 +15,7 @@ class AuditMetadata(BaseModel):
     machine_name: str = ""
     engineer_name: str = ""
     audit_date: str = ""
+    custom_fields: dict[str, Any] = {}
 
 
 class PQRow(BaseModel):
