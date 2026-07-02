@@ -49,6 +49,11 @@ function resolveApiBase(): string {
       return ''
     }
 
+    // Hugging Face Spaces — Nginx on the same container proxies /api/*
+    if (host.endsWith('.hf.space') || host.endsWith('.huggingface.co')) {
+      return ''
+    }
+
     // Render hostname conventions: try `*-web.onrender.com` -> `*-api.onrender.com`
     // swap first; if it doesn't match the convention, fall through to the
     // hard-coded production URL.
