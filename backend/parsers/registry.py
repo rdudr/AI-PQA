@@ -20,6 +20,10 @@ class _ConfiguredParser(BasePQParser):
         # Build extra_synonyms from saved mappings: {standard_col: (raw_col,)}
         extra: dict[str, tuple[str, ...]] = {}
         for raw, standard in mappings.items():
+            # Multi-sheet configs store {"standard_column": ..., "source_page": ...}
+            # instead of a plain string — unwrap to the standard column name.
+            if isinstance(standard, dict):
+                standard = standard.get("standard_column", "")
             if standard == "NA" or not standard:
                 continue
             slug = slug_column(raw)

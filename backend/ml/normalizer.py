@@ -117,9 +117,11 @@ class PQNormalizer:
         self,
         outlier_threshold: float = 3.5,   # |modified-Z| above this → outlier
         max_gap_fill: int = 6,             # max consecutive NaNs to interpolate
+        max_outlier_frac: float = 0.05,    # skip removal if more than this fraction flagged
     ) -> None:
         self.outlier_threshold = outlier_threshold
         self.max_gap_fill = max_gap_fill
+        self.max_outlier_frac = max_outlier_frac
 
     # ── Public entry point ─────────────────────────────────────────────────────
 
@@ -281,6 +283,14 @@ class PQNormalizer:
                 continue
             z = _modified_z(s[valid])
             outlier_idx = np.where(valid)[0][np.abs(z) > self.outlier_threshold]
+            # Instrument glitches are rare by nature. When a large share of the
+            # samples gets flagged, the distribution is genuinely wide or bimodal
+            # — e.g. solar sites log near-zero current all night and full load by
+            # day, so the night cluster becomes the median and every real daytime
+            # reading looks like an "outlier". Removing them would delete half
+            # the measurement campaign, so keep the column untouched instead.
+            if outlier_idx.size > valid.sum() * self.max_outlier_frac:
+                continue
             if outlier_idx.size:
                 s[outlier_idx] = np.nan
                 df[col] = s

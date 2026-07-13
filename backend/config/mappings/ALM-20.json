@@ -41,5 +41,21 @@
   "V3-1 THD (1 min)": "vthd_c",
   "I1 THD (1 min)": "ithd_a",
   "I2 THD (1 min)": "ithd_b",
-  "I3 THD (1 min)": "ithd_c"
+  "I3 THD (1 min)": "ithd_c",
+  "U12 (1 min)": "voltage_phase_a",
+  "U12 1 s MIN (1 min)": "Urms12_min",
+  "U12 1 s MAX (1 min)": "Urms12_max",
+  "U23 (1 min)": "voltage_phase_b",
+  "U23 1 s MIN (1 min)": "Urms23_min",
+  "U23 1 s MAX (1 min)": "Urms23_max",
+  "U31 (1 min)": "voltage_phase_c",
+  "U31 1 s MIN (1 min)": "Urms31_min",
+  "U31 1 s MAX (1 min)": "Urms31_max",
+  "PT (1 min)": "kw",
+  "QT (1 min)": "kvar",
+  "ST (1 min)": "kva",
+  "PFT+ (1 min)": "pf",
+  "U12-THD (1 min)": "vthd_a",
+  "U23-THD (1 min)": "vthd_b",
+  "U31-THD (1 min)": "vthd_c"
 }

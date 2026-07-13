@@ -57,7 +57,7 @@ export function baseChartOption(): Partial<EChartsOption> {
   }
 }
 
-/** Compute a padded [min, max] y-range from all series data, ignoring nulls and negatives. */
+/** Compute a padded [min, max] y-range from all series data, ignoring nulls. */
 function yRange(
   series: { data: (number | null | undefined)[] }[],
   padFraction = 0.08,
@@ -65,13 +65,17 @@ function yRange(
   const vals: number[] = []
   for (const s of series)
     for (const v of s.data)
-      if (v !== null && v !== undefined && !Number.isNaN(v) && v >= 0) vals.push(v)
+      if (v !== null && v !== undefined && !Number.isNaN(v)) vals.push(v)
   if (vals.length === 0) return [undefined, undefined]
   const lo = Math.min(...vals)
   const hi = Math.max(...vals)
   const span = hi - lo || Math.abs(hi) * 0.1 || 1
+  const paddedLo = lo - span * padFraction
   return [
-    Math.max(0, parseFloat((lo - span * padFraction).toFixed(4))),
+    // All-positive data stays anchored at 0; when the series contains negative
+    // values (e.g. kVAR/nkVAR/dkVAR with reverse power flow) the axis extends
+    // below zero so those points stay visible.
+    parseFloat((lo >= 0 ? Math.max(0, paddedLo) : paddedLo).toFixed(4)),
     parseFloat((hi + span * padFraction).toFixed(4)),
   ]
 }
@@ -108,8 +112,7 @@ export function timeSeriesOption(params: {
   const seriesData = finalSeries.map((s) =>
     s.data.map((v) => {
       if (v === null || Number.isNaN(v as number)) return null
-      const num = Number(v)
-      return num < 0 ? null : num
+      return Number(v)
     }),
   )
 
