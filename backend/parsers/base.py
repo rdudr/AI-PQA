@@ -43,6 +43,28 @@ def slug_column(name: str) -> str:
     return re.sub(r"_+", "_", s).strip("_")
 
 
+def _normalize_name(name: str) -> str:
+    import unicodedata
+    if not name:
+        return ""
+    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
+    s = re.sub(r"[\s\-_/]+", "", s)
+    return s
+
+
+def _fuzzy_normalize_name(name: str) -> str:
+    import unicodedata
+    if not name:
+        return ""
+    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
+    # Strip common units (with boundaries or inside parenthesis/brackets)
+    s = re.sub(r"\b(kvarh|kvar|kwh|kw|kvah|kva|varh|var|wh|va|w|ka|a|v|volt|amps|amp|ampere|amperes|watts|watt)\b", "", s)
+    s = re.sub(r"\((kvarh|kvar|kwh|kw|kvah|kva|varh|var|wh|va|w|ka|a|v|volt|amps|amp|ampere|amperes|watts|watt)\)", "", s)
+    s = re.sub(r"\[(kvarh|kvar|kwh|kw|kvah|kva|varh|var|wh|va|w|ka|a|v|volt|amps|amp|ampere|amperes|watts|watt)\]", "", s)
+    s = re.sub(r"[\s\-_/()\[\]]+", "", s)
+    return s
+
+
 BASE_SYNONYMS: dict[str, tuple[str, ...]] = {
     "timestamp": ("timestamp", "datetime", "date_time"),
     "date": ("date", "day", "date_only", "d", "recorddate"),

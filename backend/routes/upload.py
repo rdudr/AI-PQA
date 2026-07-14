@@ -18,7 +18,7 @@ from services.table_query import (
     sort_frame,
 )
 from parsers.preprocess import prepare_tabular_export
-from parsers.base import robust_to_datetime
+from parsers.base import robust_to_datetime, _normalize_name, _fuzzy_normalize_name
 
 router = APIRouter(tags=["upload"])
 
@@ -145,16 +145,6 @@ def _read_all_pages_for_mapping(filename: str, raw: bytes) -> list[dict]:
     return pages
 
 
-def _normalize_name(name: str) -> str:
-    import re
-    import unicodedata
-    if not name:
-        return ""
-    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
-    s = re.sub(r"[\s\-_/]+", "", s)
-    return s
-
-
 # Match sampling-interval tokens in a PQ-analyzer sheet name so the same
 # saved mapping works for a 5-second, 1-minute, 10-minute, hourly, daily file.
 # Examples it strips:  "5 s", "1 min", "10 mins", "1 minute", "2 hours", "30 sec".
@@ -216,15 +206,25 @@ def _apply_mappings_to_dataframe(
 
     source_pages = source_pages or {}
 
-    # Normalize mappings keys
+    # Normalize mappings keys (exact and fuzzy lookup)
     norm_mappings = {}
+    fuzzy_mappings = {}
     for raw_name, val in mappings.items():
-        norm_mappings[_normalize_name(raw_name)] = val
+        exact_key = _normalize_name(raw_name)
+        norm_mappings[exact_key] = val
+        fuzzy_key = _fuzzy_normalize_name(raw_name)
+        if fuzzy_key:
+            fuzzy_mappings[fuzzy_key] = val
 
     # Normalize source_pages keys
     norm_source_pages = {}
+    fuzzy_source_pages = {}
     for raw_name, val in source_pages.items():
-        norm_source_pages[_normalize_name(raw_name)] = val
+        exact_key = _normalize_name(raw_name)
+        norm_source_pages[exact_key] = val
+        fuzzy_key = _fuzzy_normalize_name(raw_name)
+        if fuzzy_key:
+            fuzzy_source_pages[fuzzy_key] = val
 
     # Create a lookup of normalized_raw_column -> (standard_col, original_raw_col, sheet_name)
     # Prefer the user-specified source_page over the first matching sheet
@@ -237,10 +237,21 @@ def _apply_mappings_to_dataframe(
         for col in df.columns:
             raw_col_orig = str(col)
             norm_col = _normalize_name(raw_col_orig)
-            if norm_col not in norm_mappings:
+            fuzzy_col = _fuzzy_normalize_name(raw_col_orig)
+
+            mapping_val = None
+            preferred_sheet = None
+
+            if norm_col in norm_mappings:
+                mapping_val = norm_mappings[norm_col]
+                preferred_sheet = norm_source_pages.get(norm_col)
+            elif fuzzy_col in fuzzy_mappings:
+                mapping_val = fuzzy_mappings[fuzzy_col]
+                preferred_sheet = fuzzy_source_pages.get(fuzzy_col)
+
+            if mapping_val is None:
                 continue
 
-            mapping_val = norm_mappings[norm_col]
             # Handle both flat string and {standard_column, source_page} dict
             if isinstance(mapping_val, dict):
                 standard_col = mapping_val.get("standard_column", "")
@@ -253,7 +264,7 @@ def _apply_mappings_to_dataframe(
                 continue
 
             # Preferred sheet: explicit source_pages arg > embedded source_page in mapping
-            preferred_sheet = norm_source_pages.get(norm_col) or embedded_page
+            preferred_sheet = preferred_sheet or embedded_page
             norm_preferred_sheet = _normalize_sheet_name(preferred_sheet) if preferred_sheet else None
 
             if norm_preferred_sheet:
@@ -680,7 +691,10 @@ async def download_normalized_excel(
             source_pages=None,
             custom_cols=custom_cols,
         )
-        output_df = _scale_power_columns(output_df)
+        raw_cols = []
+        for page in pages:
+            raw_cols.extend(list(page["df"].columns))
+        output_df = _scale_power_columns(output_df, raw_cols, model_name)
         output_df = _apply_device_voltage_multiplier(output_df, model_name)
 
         # Create Excel file in memory

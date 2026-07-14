@@ -11,7 +11,7 @@ from analytics.engine import build_ai_observations, compute_analytics
 from analytics.events import build_dip_swell_monitoring
 from ml.normalizer import PQNormalizer
 from models.schema import AuditMetadata, DataQualityReport, HarmonicSpectrumPoint, PQRow, ProcessResponse
-from parsers.base import slug_column
+from parsers.base import slug_column, _normalize_name, _fuzzy_normalize_name
 from parsers.registry import get_parser
 from services import db
 from services.config_store import get_custom_columns, get_mappings
@@ -108,22 +108,70 @@ def _sample_evenly(df: pd.DataFrame, max_rows: int) -> pd.DataFrame:
     return df.iloc[idx].reset_index(drop=True)
 
 
-def _scale_power_columns(df: pd.DataFrame, raw_columns: list[str] | None = None) -> pd.DataFrame:
+def _resolve_raw_to_standard(raw_col: str, model_name: str) -> str | None:
+    # 1. Check user mappings first (including fuzzy)
+    user_mappings = get_mappings(model_name)
+    if user_mappings:
+        norm_raw = _normalize_name(raw_col)
+        for k, v in user_mappings.items():
+            if _normalize_name(k) == norm_raw:
+                if isinstance(v, dict):
+                    return v.get("standard_column")
+                return str(v)
+        fuzzy_raw = _fuzzy_normalize_name(raw_col)
+        for k, v in user_mappings.items():
+            if _fuzzy_normalize_name(k) == fuzzy_raw:
+                if isinstance(v, dict):
+                    return v.get("standard_column")
+                return str(v)
+
+    # 2. Check synonyms (for generic/built-in parsers)
+    slug = slug_column(raw_col)
+    parser = get_parser(model_name)
+    canonical = parser._resolve_slug(slug)
+    if canonical:
+        return canonical
+        
+    return None
+
+
+def _scale_power_columns(df: pd.DataFrame, raw_columns: list[str] | None = None, model_name: str | None = None) -> pd.DataFrame:
     """Convert power columns from base units to k-units before normalization.
 
     Any future PQ power column that uses the standard power tokens in its name
     (for example kw, kva, kvar, nkvar, dkvar) will be scaled automatically.
 
-    If raw_columns are provided, and any of them indicate that the data is already
-    in kilo-units (contains kw, kva, kvar etc.), we skip scaling.
+    If raw_columns are provided, we check the unit format of the active/apparent power.
+    If it is already in kilo-units (like kW or kVA), we skip scaling (do not divide by 1000).
     """
     scale = True
-    if raw_columns is not None:
-        for col in raw_columns:
-            slug = slug_column(col)
-            if _POWER_COLUMN_PATTERN.search(slug):
-                scale = False
+    if raw_columns is not None and model_name:
+        std_to_raw: dict[str, list[str]] = {}
+        for raw_col in raw_columns:
+            std_col = _resolve_raw_to_standard(raw_col, model_name)
+            if std_col:
+                std_to_raw.setdefault(std_col, []).append(raw_col)
+
+        # Check kw columns
+        kw_raw_cols = std_to_raw.get("kw", [])
+        has_kilo = False
+        for raw_col in kw_raw_cols:
+            slug = slug_column(raw_col)
+            if re.search(r"(^|_)(kw)(_|$)", slug):
+                has_kilo = True
                 break
+
+        if not kw_raw_cols:
+            # Check kva fallback
+            kva_raw_cols = std_to_raw.get("kva", [])
+            for raw_col in kva_raw_cols:
+                slug = slug_column(raw_col)
+                if re.search(r"(^|_)(kva)(_|$)", slug):
+                    has_kilo = True
+                    break
+
+        if has_kilo:
+            scale = False
 
     if not scale:
         return df
@@ -204,8 +252,8 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
             from routes.upload import _apply_mappings_to_dataframe, _read_all_pages_for_mapping
             pages = _read_all_pages_for_mapping(filename, raw)
             if pages:
-                for df_page in pages.values():
-                    raw_columns.extend(list(df_page.columns))
+                for page_dict in pages:
+                    raw_columns.extend(list(page_dict["df"].columns))
                 normalized = _apply_mappings_to_dataframe(
                     pages,
                     user_mappings,
@@ -231,7 +279,7 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
     # Free the raw bytes — we no longer need them after parsing
     del raw
 
-    normalized = _scale_power_columns(normalized, raw_columns)
+    normalized = _scale_power_columns(normalized, raw_columns, metadata.pq_analyzer_type)
     normalized = _apply_device_voltage_multiplier(normalized, metadata.pq_analyzer_type)
 
 
@@ -310,8 +358,8 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
                 from routes.upload import _apply_mappings_to_dataframe, _read_all_pages_for_mapping
                 pages = _read_all_pages_for_mapping(filename, raw)
                 if pages:
-                    for df_page in pages.values():
-                        raw_columns.extend(list(df_page.columns))
+                    for page_dict in pages:
+                        raw_columns.extend(list(page_dict["df"].columns))
                     normalized = _apply_mappings_to_dataframe(
                         pages,
                         user_mappings,
@@ -334,7 +382,7 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
 
         del raw
 
-        normalized = _scale_power_columns(normalized, raw_columns)
+        normalized = _scale_power_columns(normalized, raw_columns, model_name)
         normalized = _apply_device_voltage_multiplier(normalized, model_name)
         normalized = normalized.dropna(how="all")
 
