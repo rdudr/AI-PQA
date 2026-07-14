@@ -103,11 +103,12 @@ def _invert_synonyms(extra: dict[str, tuple[str, ...]] | None = None) -> dict[st
 def robust_to_datetime(series: pd.Series, utc: bool = False) -> pd.Series:
     """Robust conversion to datetime that handles DD-MM-YYYY vs YYYY-MM-DD correctly."""
     import re
+    import pandas as pd
     str_series = series.astype(str).str.strip()
     sample = None
     for v in str_series:
-        if v and v != "nan" and v != "None":
-            sample = v
+        if pd.notna(v) and str(v) not in ("", "nan", "None", "NaT"):
+            sample = str(v)
             break
     if not sample:
         return pd.to_datetime(series, errors="coerce", utc=utc)
@@ -132,6 +133,8 @@ def guess_timestamp_series(df: pd.DataFrame) -> pd.Series | None:
         return robust_to_datetime(combo, utc=False)
     if date_col:
         return robust_to_datetime(df[date_col], utc=False)
+    if time_col:
+        return robust_to_datetime(df[time_col], utc=False)
     return None
 
 

@@ -108,16 +108,26 @@ def _sample_evenly(df: pd.DataFrame, max_rows: int) -> pd.DataFrame:
     return df.iloc[idx].reset_index(drop=True)
 
 
-def _scale_power_columns(df: pd.DataFrame) -> pd.DataFrame:
+def _scale_power_columns(df: pd.DataFrame, raw_columns: list[str] | None = None) -> pd.DataFrame:
     """Convert power columns from base units to k-units before normalization.
 
     Any future PQ power column that uses the standard power tokens in its name
     (for example kw, kva, kvar, nkvar, dkvar) will be scaled automatically.
 
-    Mutates *df* in place to avoid copying large frames — callers should pass a
-    dataframe they own (`process_bytes` does, and the Excel-download route just
-    built it locally).
+    If raw_columns are provided, and any of them indicate that the data is already
+    in kilo-units (contains kw, kva, kvar etc.), we skip scaling.
     """
+    scale = True
+    if raw_columns is not None:
+        for col in raw_columns:
+            slug = slug_column(col)
+            if _POWER_COLUMN_PATTERN.search(slug):
+                scale = False
+                break
+
+    if not scale:
+        return df
+
     for col in df.columns:
         if _POWER_COLUMN_PATTERN.search(str(col).lower()):
             df[col] = pd.to_numeric(df[col], errors="coerce") / 1000.0
@@ -185,6 +195,7 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
     # built-in parser. This makes the dashboard data identical to the normalized
     # Excel export — same columns, same names, same source pages.
     normalized = None
+    raw_columns = []
     user_mappings = get_mappings(metadata.pq_analyzer_type)
     user_custom_cols = get_custom_columns(metadata.pq_analyzer_type)
     if user_mappings or user_custom_cols:
@@ -193,6 +204,8 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
             from routes.upload import _apply_mappings_to_dataframe, _read_all_pages_for_mapping
             pages = _read_all_pages_for_mapping(filename, raw)
             if pages:
+                for df_page in pages.values():
+                    raw_columns.extend(list(df_page.columns))
                 normalized = _apply_mappings_to_dataframe(
                     pages,
                     user_mappings,
@@ -205,9 +218,11 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
             gc.collect()
         except Exception:
             normalized = None  # fall back to built-in parser below
+            raw_columns = []
 
     if normalized is None:
         raw_df = load_dataframe(filename, raw)
+        raw_columns = list(raw_df.columns)
         parser = get_parser(metadata.pq_analyzer_type)
         normalized = parser.normalize(raw_df)
         del raw_df
@@ -216,7 +231,7 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
     # Free the raw bytes — we no longer need them after parsing
     del raw
 
-    normalized = _scale_power_columns(normalized)
+    normalized = _scale_power_columns(normalized, raw_columns)
     normalized = _apply_device_voltage_multiplier(normalized, metadata.pq_analyzer_type)
 
 
@@ -287,6 +302,7 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
         model_name = entry["model_name"]
 
         normalized = None
+        raw_columns = []
         user_mappings = get_mappings(model_name)
         user_custom_cols = get_custom_columns(model_name)
         if user_mappings or user_custom_cols:
@@ -294,6 +310,8 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
                 from routes.upload import _apply_mappings_to_dataframe, _read_all_pages_for_mapping
                 pages = _read_all_pages_for_mapping(filename, raw)
                 if pages:
+                    for df_page in pages.values():
+                        raw_columns.extend(list(df_page.columns))
                     normalized = _apply_mappings_to_dataframe(
                         pages,
                         user_mappings,
@@ -304,9 +322,11 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
                 gc.collect()
             except Exception:
                 normalized = None
+                raw_columns = []
 
         if normalized is None:
             raw_df = load_dataframe(filename, raw)
+            raw_columns = list(raw_df.columns)
             parser = get_parser(model_name)
             normalized = parser.normalize(raw_df)
             del raw_df
@@ -314,7 +334,7 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
 
         del raw
 
-        normalized = _scale_power_columns(normalized)
+        normalized = _scale_power_columns(normalized, raw_columns)
         normalized = _apply_device_voltage_multiplier(normalized, model_name)
         normalized = normalized.dropna(how="all")
 
