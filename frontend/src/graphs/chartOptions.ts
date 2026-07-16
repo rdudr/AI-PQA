@@ -57,6 +57,24 @@ export function baseChartOption(): Partial<EChartsOption> {
   }
 }
 
+/** True when the series contains at least one finite numeric value.
+ *  A series that is ALL null/undefined/NaN means the column was never mapped
+ *  in the PQ model config (e.g. Y/B phase missing on a single-phase clamp). */
+function seriesHasData(data: (number | null | undefined)[]): boolean {
+  return data.some((v) => v != null && Number.isFinite(Number(v)))
+}
+
+/** Build the ECharts legend.selected map: series without any data default to
+ *  OFF so unmapped phases don't clutter the chart — the legend entry stays
+ *  visible (greyed) and the user can toggle it back on at any time. */
+function legendSelected(
+  series: { name: string; data: (number | null | undefined)[] }[],
+): Record<string, boolean> {
+  const selected: Record<string, boolean> = {}
+  for (const s of series) selected[s.name] = seriesHasData(s.data)
+  return selected
+}
+
 /** Compute a padded [min, max] y-range from all series data, ignoring nulls. */
 function yRange(
   series: { data: (number | null | undefined)[] }[],
@@ -160,6 +178,8 @@ export function timeSeriesOption(params: {
       itemWidth: 12,
       itemHeight: 8,
       itemGap: 10,
+      // Unmapped series (no data at all) start switched OFF but stay toggleable
+      selected: legendSelected(finalSeries),
     },
     xAxis: {
       type: 'category',
@@ -257,6 +277,11 @@ export function harmonicGroupedBarOption(params: {
       itemHeight: 8,
       itemGap: 10,
       data: phases.map(p => p.name),
+      // Phases whose harmonics are all zero (nothing mapped/recorded) start
+      // OFF; the legend entry stays so the user can toggle them back on.
+      selected: Object.fromEntries(
+        phases.map(p => [p.name, p.data.some(v => v > 0)]),
+      ),
     },
     grid: { left: 56, right: 24, top: 96, bottom: 60 },
     xAxis: {
@@ -416,6 +441,8 @@ export function minMaxBandOption(params: {
       itemWidth: 12,
       itemHeight: 8,
       itemGap: 10,
+      // Bands whose min/max columns were never mapped start switched OFF
+      selected: legendSelected(series),
     },
     xAxis: {
       type: 'category',

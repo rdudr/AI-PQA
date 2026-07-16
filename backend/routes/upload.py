@@ -369,16 +369,17 @@ def _apply_mappings_to_dataframe(
     # faster than building Python lists and appending None in a loop.
     output_df = pd.concat(result_series, axis=1)
 
-    # Convert numeric columns — skip known text/datetime columns
+    # Convert numeric columns — skip known text/datetime columns.
+    # Every other standard column is numeric by design, so coerce
+    # unconditionally: clamp/logger exports use placeholders like "----" for
+    # channels that recorded no data, and a column that is ALL placeholders
+    # must become NaN instead of leaking strings into PQRow validation.
     _TEXT_COLS = {"timestamp", "date", "time"}
     for col in output_df.columns:
         if col.lower() in _TEXT_COLS:
             continue
         try:
-            converted = pd.to_numeric(output_df[col], errors="coerce")
-            # Only replace if at least some values converted successfully (avoid wiping text cols)
-            if converted.notna().any():
-                output_df[col] = converted
+            output_df[col] = pd.to_numeric(output_df[col], errors="coerce")
         except Exception:
             pass
 

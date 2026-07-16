@@ -64,6 +64,11 @@ const extractStd = (v: unknown): string => {
   return String(v)
 }
 
+// Mirror of the backend's _normalize_name so raw column names saved from an
+// earlier file can be compared against the columns of the currently inspected one.
+const normalizeName = (name: string): string =>
+  name ? String(name).normalize('NFKC').trim().toLowerCase().replace(/[\s\-_/]+/g, '') : ''
+
 
 export function ConfigPage() {
   const { modelName } = useParams<{ modelName: string }>()
@@ -141,7 +146,13 @@ export function ConfigPage() {
       const merged: typeof savedBase = { ...savedBase }
       for (const col of data.columns) {
         if (merged[col.raw_name] !== undefined) continue   // saved takes priority
-        // Default to NA for auto-detected columns on first load to let the user select everything
+        // A saved mapping can match this column under a slightly different raw
+        // name (spacing/case/units) — the backend reports that as "saved".
+        // Pre-fill it so the dropdown shows what processing will actually do.
+        if (col.match_source === 'saved' && col.matched_to) {
+          merged[col.raw_name] = col.matched_to
+        }
+        // Otherwise default to NA so the user selects everything explicitly
       }
 
       setAssignments(merged)
@@ -253,19 +264,27 @@ export function ConfigPage() {
     }
   }
 
-  // Count how many times each standard column is used across ALL assignments.
+  // Count how many times each standard column is used across the assignments
+  // that belong to the CURRENTLY inspected file. Saved mappings for raw columns
+  // that don't exist in this file (e.g. an old template or a different file
+  // variant) must NOT occupy standard columns — otherwise voltage/current/etc.
+  // silently vanish from every "Maps to" dropdown with no visible row to clear.
   // Computed once per assignments change (O(rows)) instead of rebuilding a
   // per-row "used by others" set inside every dropdown (O(rows²)).
   const assignmentCounts = useMemo(() => {
+    const fileColNorms = result
+      ? new Set(result.columns.map((c) => normalizeName(c.raw_name)))
+      : null
     const counts: Record<string, number> = {}
-    for (const mapped of Object.values(assignments)) {
+    for (const [rawName, mapped] of Object.entries(assignments)) {
+      if (fileColNorms && !fileColNorms.has(normalizeName(rawName))) continue
       const std = extractStd(mapped)
       if (std && std !== 'NA' && STANDARD_COLS_SET.has(std)) {
         counts[std] = (counts[std] ?? 0) + 1
       }
     }
     return counts
-  }, [assignments])
+  }, [assignments, result])
 
   if (!modelName) return null
 
@@ -638,12 +657,10 @@ export function ConfigPage() {
                 <div>
                   <label className="block text-xs font-medium text-[#10375c]/70 mb-1.5">Maps to</label>
                   {(() => {
-                    // Get all assigned standard columns (from both main table and custom columns)
-                    const assignedCols = new Set(
-                      Object.entries(assignments)
-                        .filter(([, mapped]) => mapped && mapped !== '' && mapped !== 'NA' && STANDARD_COLS.includes(String(mapped)))
-                        .map(([, mapped]) => mapped)
-                    )
+                    // Get all assigned standard columns (from both main table and custom columns).
+                    // assignmentCounts already handles object-type mappings and ignores
+                    // stale saved mappings whose raw columns aren't in the current file.
+                    const assignedCols = new Set<string>(Object.keys(assignmentCounts))
 
                     // Also exclude custom columns that are already added
                     customColumns.forEach((customCol) => {

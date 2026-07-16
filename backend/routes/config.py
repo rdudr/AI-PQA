@@ -7,7 +7,13 @@ import pandas as pd
 from fastapi import APIRouter, File, HTTPException, UploadFile, Response
 from pydantic import BaseModel
 
-from parsers.base import STANDARD_COLUMNS, slug_column, _invert_synonyms
+from parsers.base import (
+    STANDARD_COLUMNS,
+    slug_column,
+    _invert_synonyms,
+    _normalize_name,
+    _fuzzy_normalize_name,
+)
 from parsers.alm import ALM_SYNONYMS
 from parsers.hioki import HIOKI_SYNONYMS
 from parsers.preprocess import prepare_tabular_export
@@ -157,10 +163,31 @@ def _read_all_pages(filename: str, raw: bytes) -> list[dict]:
     return pages
 
 
+def _extract_std(mapping_val) -> str | None:
+    """Saved mapping values are either a plain string or {standard_column, source_page}."""
+    if isinstance(mapping_val, dict):
+        return mapping_val.get("standard_column") or None
+    return str(mapping_val) if mapping_val else None
+
+
 def _classify_col(raw_name: str, saved: dict[str, str]) -> tuple[str | None, str]:
-    """Return (matched_standard_name | None, match_source)."""
+    """Return (matched_standard_name | None, match_source).
+
+    Saved mappings are matched with the same normalized + fuzzy rules that
+    `_apply_mappings_to_dataframe` uses at upload time, so the config screen
+    shows exactly what processing will do — not just exact-name matches.
+    """
     if raw_name in saved:
-        return saved[raw_name], "saved"
+        return _extract_std(saved[raw_name]), "saved"
+    norm_raw = _normalize_name(raw_name)
+    for k, v in saved.items():
+        if _normalize_name(k) == norm_raw:
+            return _extract_std(v), "saved"
+    fuzzy_raw = _fuzzy_normalize_name(raw_name)
+    if fuzzy_raw:
+        for k, v in saved.items():
+            if _fuzzy_normalize_name(k) == fuzzy_raw:
+                return _extract_std(v), "saved"
     slug = slug_column(raw_name)
     if slug in _REV_MAP:
         return _REV_MAP[slug], "auto"

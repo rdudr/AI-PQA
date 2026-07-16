@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
 class AuditMetadata(BaseModel):
@@ -43,6 +43,27 @@ class PQRow(BaseModel):
     nkvar: float | None = None
     dkvar: float | None = None
     dpf: float | None = None
+
+    @field_validator(
+        "voltage_phase_a", "voltage_phase_b", "voltage_phase_c",
+        "current_phase_a", "current_phase_b", "current_phase_c",
+        "kw", "kva", "pf", "frequency",
+        "vthd_a", "vthd_b", "vthd_c",
+        "ithd_a", "ithd_b", "ithd_c",
+        "kvar", "nkvar", "dkvar", "dpf",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_placeholder_to_none(cls, v):
+        """Device exports mark idle channels with placeholders like '----',
+        '--', 'N/A' — treat any unparseable string as missing, never crash."""
+        if isinstance(v, str):
+            s = v.strip().replace(",", "")
+            try:
+                return float(s)
+            except ValueError:
+                return None
+        return v
 
 
 class MetricBlock(BaseModel):
