@@ -241,6 +241,7 @@ def _apply_mappings_to_dataframe(
 
             mapping_val = None
             preferred_sheet = None
+            match_kind = "exact"
 
             if norm_col in norm_mappings:
                 mapping_val = norm_mappings[norm_col]
@@ -248,6 +249,7 @@ def _apply_mappings_to_dataframe(
             elif fuzzy_col in fuzzy_mappings:
                 mapping_val = fuzzy_mappings[fuzzy_col]
                 preferred_sheet = fuzzy_source_pages.get(fuzzy_col)
+                match_kind = "fuzzy"
 
             if mapping_val is None:
                 continue
@@ -270,13 +272,13 @@ def _apply_mappings_to_dataframe(
             if norm_preferred_sheet:
                 if norm_preferred_sheet == norm_sheet:
                     # This IS the preferred sheet — always win
-                    col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name)
+                    col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name, match_kind)
                 elif norm_col not in col_to_source:
                     # Not the preferred sheet but nothing recorded yet — use as fallback
-                    col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name)
+                    col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name, match_kind)
             elif norm_col not in col_to_source:
                 # No preference — use first sheet found
-                col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name)
+                col_to_source[norm_col] = (standard_col, raw_col_orig, sheet_name, match_kind)
 
     # Build a quick lookup so we don't loop pages × columns
     sheet_lookup: dict[str, pd.DataFrame] = {p["sheet_name"]: p["df"] for p in pages}
@@ -312,13 +314,26 @@ def _apply_mappings_to_dataframe(
     }
     _ka_cols: set[str] = set()   # standard column names that need ×1000
 
-    for norm_col, (standard_col, raw_col_orig, sheet_name) in col_to_source.items():
+    # Several DIFFERENT raw columns can resolve to the SAME standard column —
+    # e.g. ALM-45 exports both "SΣ (VA)" (real apparent power) and "SΣ-"
+    # (reverse-direction, all zeros on a load), and the latter fuzzy-matches
+    # the "SΣ (VA)" mapping key once units and hyphens are stripped.  A fuzzy
+    # match must never displace an exact match, and within the same kind the
+    # first (leftmost) column wins.
+    _kind_by_standard: dict[str, str] = {}
+
+    for norm_col, (standard_col, raw_col_orig, sheet_name, match_kind) in col_to_source.items():
         source_df = sheet_lookup.get(sheet_name)
         if source_df is None or raw_col_orig not in source_df.columns:
             continue
+        prev_kind = _kind_by_standard.get(standard_col)
+        if prev_kind is not None and not (prev_kind == "fuzzy" and match_kind == "exact"):
+            continue   # keep the earlier (or exact) match
         # Keep as pandas Series; rebuild index so concat aligns positionally
         result_series[standard_col] = _as_series(source_df, raw_col_orig)
+        _kind_by_standard[standard_col] = match_kind
         # Detect kA unit in the original column name (case-insensitive, any bracket style)
+        _ka_cols.discard(standard_col)
         if standard_col in _KA_CURRENT_STANDARDS and "ka" in raw_col_orig.lower().replace("(", "").replace(")", ""):
             _ka_cols.add(standard_col)
 
