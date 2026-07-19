@@ -11,7 +11,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { Download, Loader2 } from 'lucide-react'
 
 import type { PQRow } from '@/types/pq'
-import { fetchTablePage, tableExportUrl } from '@/services/api'
+import { SessionExpiredError, fetchTablePage, tableExportUrl } from '@/services/api'
 import { buildDownloadName } from '@/utils/downloadName'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,9 +50,19 @@ type Props = {
   auditDate?: string
   pqName?: string
   machineName?: string
+  /** Rows cached in the browser from the original upload — used as a read-only
+   *  fallback when the server no longer holds the session (e.g. after a restart
+   *  without DATABASE_URL configured). */
+  fallbackRows?: PQRow[]
+  fallbackColumns?: string[]
+  /** Total rows in the original dataset (may exceed fallbackRows.length). */
+  fallbackTotal?: number
 }
 
-export function DataGrid({ sessionId, companyName, auditDate, pqName, machineName }: Props) {
+export function DataGrid({
+  sessionId, companyName, auditDate, pqName, machineName,
+  fallbackRows, fallbackColumns, fallbackTotal,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
@@ -71,6 +81,9 @@ export function DataGrid({ sessionId, companyName, auditDate, pqName, machineNam
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dataColumns, setDataColumns] = useState<string[]>([])
+  // Server lost the session (restart without DATABASE_URL) — serve the
+  // browser-cached preview rows instead of erroring out.
+  const [serverGone, setServerGone] = useState(false)
 
   const activeColFilters = useMemo(() => {
     const out: Record<string, string> = {}
@@ -88,9 +101,53 @@ export function DataGrid({ sessionId, companyName, auditDate, pqName, machineNam
   const sortOrder: 'asc' | 'desc' | undefined =
     sorting[0] === undefined ? undefined : sorting[0].desc ? 'desc' : 'asc'
 
+  // Client-side equivalent of the server's search + per-column filters, used
+  // only in the cached-preview fallback.
+  const filterFallbackRows = useCallback((source: PQRow[]): PQRow[] => {
+    let out = source
+    const q = debouncedFilter.trim().toLowerCase()
+    if (q) {
+      out = out.filter((row) =>
+        Object.values(row).some(
+          (v) => v !== null && v !== undefined && String(v).toLowerCase().includes(q),
+        ),
+      )
+    }
+    if (activeColFilters) {
+      for (const [col, val] of Object.entries(activeColFilters)) {
+        const needle = val.toLowerCase()
+        out = out.filter((row) => {
+          const v = row[col]
+          return v !== null && v !== undefined && String(v).toLowerCase().includes(needle)
+        })
+      }
+    }
+    return out
+  }, [debouncedFilter, activeColFilters])
+
+  const showFallback = useCallback(() => {
+    const source = fallbackRows ?? []
+    const filtered = filterFallbackRows(source)
+    setServerGone(true)
+    setRows(filtered)
+    setTotal(filtered.length)
+    setTotalPages(1)
+    if (fallbackColumns && fallbackColumns.length > 0) {
+      setDataColumns(fallbackColumns)
+    } else if (source.length > 0) {
+      setDataColumns(Object.keys(source[0]))
+    }
+  }, [fallbackRows, fallbackColumns, filterFallbackRows])
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
+    if (serverGone) {
+      // Already know the server lost the session — filter the cache locally.
+      showFallback()
+      setLoading(false)
+      return
+    }
     try {
       const res = await fetchTablePage({
         sessionId,
@@ -111,12 +168,19 @@ export function DataGrid({ sessionId, companyName, auditDate, pqName, machineNam
         setDataColumns(Object.keys(res.rows[0]))
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Load failed')
-      setRows([])
+      if (e instanceof SessionExpiredError && fallbackRows && fallbackRows.length > 0) {
+        showFallback()
+      } else {
+        setError(e instanceof Error ? e.message : 'Load failed')
+        setRows([])
+      }
     } finally {
       setLoading(false)
     }
   }, [
+    serverGone,
+    showFallback,
+    fallbackRows,
     sessionId,
     pagination.pageIndex,
     pagination.pageSize,
@@ -194,21 +258,44 @@ export function DataGrid({ sessionId, companyName, auditDate, pqName, machineNam
             onChange={(e) => setGlobalFilter(e.target.value)}
             className="sm:w-64"
           />
-          <Button variant="secondary" type="button" asChild>
-            <a href={exportHref} download={buildDownloadName({
-              company: companyName,
-              pqName,
-              machineName,
-              dateInput: auditDate,
-              ext: 'csv'
-            })}>
+          {serverGone ? (
+            <Button
+              variant="secondary"
+              type="button"
+              disabled
+              title="Server-side export unavailable — re-upload the file to restore it"
+            >
               <Download className="size-4" />
               Export CSV
-            </a>
-          </Button>
+            </Button>
+          ) : (
+            <Button variant="secondary" type="button" asChild>
+              <a href={exportHref} download={buildDownloadName({
+                company: companyName,
+                pqName,
+                machineName,
+                dateInput: auditDate,
+                ext: 'csv'
+              })}>
+                <Download className="size-4" />
+                Export CSV
+              </a>
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
+        {serverGone ? (
+          <div className="border-b border-amber-200 bg-amber-50/90 px-4 py-3 text-sm text-amber-800">
+            <span className="font-semibold">Showing cached preview.</span>{' '}
+            The server no longer holds this session&apos;s full dataset (it likely
+            restarted). Displaying the {(fallbackRows?.length ?? 0).toLocaleString()} rows
+            saved in this browser
+            {fallbackTotal && fallbackTotal > (fallbackRows?.length ?? 0)
+              ? ` of ${fallbackTotal.toLocaleString()} total`
+              : ''}. Re-upload the file to restore full paging, sorting and exports.
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2 border-b border-[#10375c]/10 bg-white/35 px-4 py-3 text-sm text-[#10375c]/70">
           <Button
             variant="outline"

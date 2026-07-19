@@ -11,6 +11,15 @@ import type { HistoryItem } from '@/utils/sessionDb'
 
 import { API_BASE } from './apiBase'
 
+/** The server no longer holds this session's data (e.g. it restarted and no
+ *  DATABASE_URL is configured). Callers can fall back to locally cached data. */
+export class SessionExpiredError extends Error {
+  constructor(sessionId: string) {
+    super(`Session ${sessionId} is no longer available on the server`)
+    this.name = 'SessionExpiredError'
+  }
+}
+
 export async function fetchTablePage(params: {
   sessionId: string
   page: number
@@ -35,6 +44,7 @@ export async function fetchTablePage(params: {
     `${API_BASE}/api/upload/session/${encodeURIComponent(params.sessionId)}/table?${sp}`,
   )
   if (!r.ok) {
+    if (r.status === 404) throw new SessionExpiredError(params.sessionId)
     const errBody = await r.json().catch(() => null)
     const detail =
       errBody && typeof errBody === 'object' && 'detail' in errBody

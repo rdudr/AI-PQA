@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 
 import { loadSession } from '@/utils/sessionDb'
+import { useNotifications } from '@/contexts/NotificationContext'
 import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
@@ -264,6 +265,7 @@ function computeRangeAnalytics(rows: Row[]): AnalyticsPayload {
 }
 
 export function DashboardPage() {
+  const { push } = useNotifications()
   const reportRef = useRef<HTMLDivElement>(null)
   const qualityMenuRef = useRef<HTMLDivElement>(null)
   const rangePickerRef = useRef<HTMLDivElement>(null)
@@ -723,7 +725,17 @@ export function DashboardPage() {
   const downloadNormalizedExcel = async () => {
     setNormalizedExcelBusy(true)
     try {
-      const { blob } = await downloadNormalizedSessionExcel(data.session_id)
+      let blob: Blob
+      try {
+        ({ blob } = await downloadNormalizedSessionExcel(data.session_id))
+      } catch {
+        push(
+          'error',
+          'Export unavailable',
+          'The server no longer holds this session’s data (it likely restarted). Re-upload the file to restore exports.',
+        )
+        return
+      }
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -1513,6 +1525,9 @@ export function DashboardPage() {
         auditDate={data.metadata.audit_date}
         pqName={data.metadata.pq_analyzer_type}
         machineName={data.metadata.machine_name}
+        fallbackRows={data.rows}
+        fallbackColumns={data.columns}
+        fallbackTotal={data.total_rows}
       />
     </div>
   )
