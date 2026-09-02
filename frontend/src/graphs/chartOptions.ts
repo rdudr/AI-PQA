@@ -75,6 +75,23 @@ function legendSelected(
   return selected
 }
 
+/** Min/max of a numeric array without spreading it into a call.
+ *
+ *  `Math.min(...vals)` passes one argument per element, so a full-resolution
+ *  recording (tens of thousands of rows × several phases) overflows the JS
+ *  call stack and takes the whole dashboard down with a RangeError. A plain
+ *  loop has no such limit. */
+function extentOf(vals: number[]): [number, number] {
+  let lo = Infinity
+  let hi = -Infinity
+  for (let i = 0; i < vals.length; i++) {
+    const v = vals[i]
+    if (v < lo) lo = v
+    if (v > hi) hi = v
+  }
+  return [lo, hi]
+}
+
 /** Compute a padded [min, max] y-range from all series data, ignoring nulls. */
 function yRange(
   series: { data: (number | null | undefined)[] }[],
@@ -85,8 +102,7 @@ function yRange(
     for (const v of s.data)
       if (v !== null && v !== undefined && !Number.isNaN(v)) vals.push(v)
   if (vals.length === 0) return [undefined, undefined]
-  const lo = Math.min(...vals)
-  const hi = Math.max(...vals)
+  const [lo, hi] = extentOf(vals)
   const span = hi - lo || Math.abs(hi) * 0.1 || 1
   const paddedLo = lo - span * padFraction
   return [
@@ -386,11 +402,14 @@ export function minMaxBandOption(params: {
 
   const allVals: number[] = []
   for (const b of params.bands) {
-    for (const v of [...b.dataMin, ...b.dataMax])
+    for (const v of b.dataMin)
+      if (v != null && !isNaN(v) && v >= 0) allVals.push(v as number)
+    for (const v of b.dataMax)
       if (v != null && !isNaN(v) && v >= 0) allVals.push(v as number)
   }
-  const lo = allVals.length ? Math.min(...allVals) : undefined
-  const hi = allVals.length ? Math.max(...allVals) : undefined
+  const [loVal, hiVal] = extentOf(allVals)
+  const lo = allVals.length ? loVal : undefined
+  const hi = allVals.length ? hiVal : undefined
   const span = (lo !== undefined && hi !== undefined) ? (hi - lo || 1) : 1
   const yMin = lo !== undefined ? Math.max(0, parseFloat((lo - span * 0.06).toFixed(2))) : undefined
   const yMax = hi !== undefined ? parseFloat((hi + span * 0.06).toFixed(2)) : undefined
