@@ -2,14 +2,65 @@ import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import * as echarts from 'echarts'
 
-import type { AnalyticsPayload, AuditMetadata, HarmonicSpectrumPoint, MetricBlock } from '@/types/pq'
+import type { AnalyticsPayload, AuditMetadata, HarmonicSpectrumPoint, MetricBlock, ProcessResponse } from '@/types/pq'
+import {
+  complianceSummary,
+  evaluateCompliance,
+  groupByStandard,
+  VERDICT_LABEL,
+  type Verdict,
+} from '@/utils/compliance'
+import {
+  computeHealth,
+  overallHealthScore,
+  statusOf,
+  HEALTH_STATUS_LABEL,
+  type HealthStatus,
+} from '@/utils/equipmentHealth'
 
 const PRIMARY = '#10375C'
 const MARGIN = 48
 
+const GREEN: [number, number, number] = [16, 185, 129]
+const AMBER: [number, number, number] = [217, 119, 6]
+const RED: [number, number, number] = [220, 38, 38]
+
+const VERDICT_RGB: Record<Verdict, [number, number, number]> = {
+  pass: GREEN,
+  warn: AMBER,
+  fail: RED,
+}
+
+const HEALTH_RGB: Record<HealthStatus, [number, number, number]> = {
+  good: GREEN,
+  fair: AMBER,
+  poor: RED,
+}
+
 function fmt(v: number | null | undefined, digits = 2) {
-  if (v === null || v === undefined || Number.isNaN(v)) return '—'
+  if (v === null || v === undefined || Number.isNaN(v)) return '-'
   return v.toFixed(digits)
+}
+
+/** Make text safe for jsPDF's built-in Helvetica.
+ *
+ *  That font is WinAnsi-encoded, so typographic characters used in the rule and
+ *  recommendation text (≥, ·, —, …) are emitted as mojibake — "PF to ≥ 0.95"
+ *  printed as 'PF to "e 0.95'. Map them to ASCII, and drop anything left that
+ *  falls outside Latin-1 (accented company names still survive). */
+function pdfSafe(s: string): string {
+  return String(s)
+    .replace(/≥/g, '>=')
+    .replace(/≤/g, '<=')
+    .replace(/[–—]/g, '-')
+    .replace(/[·•]/g, '-')
+    .replace(/±/g, '+/-')
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/…/g, '...')
+    // Drop anything still outside Latin-1 - jsPDF's Helvetica cannot encode it -
+    // but keep newlines so splitTextToSize can still break paragraphs.
+    .replace(/[^ -ÿ]/g, (ch) => (ch === '\n' ? '\n' : ''))
 }
 
 type Status = 'good' | 'warning' | 'critical' | 'neutral'
@@ -135,6 +186,279 @@ function ensureSpace(pdf: jsPDF, y: number, need: number): number {
   return y
 }
 
+/** Section heading with the same weight as "Detailed analytics". */
+function drawSectionHeading(pdf: jsPDF, yIn: number, title: string, subtitle?: string): number {
+  let y = ensureSpace(pdf, yIn, subtitle ? 52 : 40)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(13)
+  pdf.setTextColor(PRIMARY)
+  pdf.text(title, MARGIN, y)
+  y += 16
+  if (subtitle) {
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(9)
+    pdf.setTextColor(110, 118, 135)
+    pdf.text(subtitle, MARGIN, y)
+    y += 14
+  }
+  return y
+}
+
+// ── Compliance section ────────────────────────────────────────────────────────
+
+/** Standards compliance: one grouped table per standard, verdict colour-coded.
+ *  Uses the same evaluateCompliance() the Compliance page renders, so the PDF
+ *  and the screen can never disagree. */
+function drawComplianceSection(pdf: jsPDF, yIn: number, session: ProcessResponse): number {
+  const rules = evaluateCompliance(session)
+  if (rules.length === 0) return yIn
+
+  const summary = complianceSummary(rules)
+  const pageW = pdf.internal.pageSize.getWidth()
+  const tableLeft = MARGIN
+  const tableRight = pageW - MARGIN
+
+  pdf.addPage()
+  let y = MARGIN + 20
+
+  y = drawSectionHeading(
+    pdf,
+    y,
+    'Standards Compliance',
+    'Evaluated against IEEE 519, EN 50160, IEC 61000-3-14 and utility power-factor norms.',
+  )
+
+  // Headline band: overall % plus pass / marginal / fail counts.
+  pdf.setFillColor(244, 246, 255)
+  pdf.rect(tableLeft, y, tableRight - tableLeft, 42, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(18)
+  pdf.setTextColor(PRIMARY)
+  pdf.text(`${summary.score}%`, tableLeft + 12, y + 27)
+  pdf.setFontSize(8)
+  pdf.setFont('helvetica', 'normal')
+  pdf.setTextColor(110, 118, 135)
+  pdf.text(`overall · ${summary.total} checks`, tableLeft + 62, y + 27)
+
+  const counts: [string, number, [number, number, number]][] = [
+    ['Pass', summary.pass, GREEN],
+    ['Marginal', summary.warn, AMBER],
+    ['Fail', summary.fail, RED],
+  ]
+  let cx = tableLeft + 250
+  for (const [label, value, rgb] of counts) {
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(7)
+    pdf.setTextColor(rgb[0], rgb[1], rgb[2])
+    pdf.text(label.toUpperCase(), cx, y + 16)
+    pdf.setFontSize(16)
+    pdf.setTextColor(PRIMARY)
+    pdf.text(String(value), cx, y + 33)
+    cx += 90
+  }
+  y += 56
+
+  const colClause = tableLeft + 6
+  const colMeasured = tableLeft + 250
+  const colLimit = tableLeft + 330
+  const colVerdict = tableLeft + 405
+  const headerH = 18
+  const rowH = 24
+
+  for (const [standard, items] of Object.entries(groupByStandard(rules))) {
+    const passCount = items.filter(i => i.verdict === 'pass').length
+    y = ensureSpace(pdf, y, 20 + headerH + rowH + 20)
+
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(10)
+    pdf.setTextColor(PRIMARY)
+    pdf.text(pdfSafe(standard), tableLeft, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    pdf.setTextColor(110, 118, 135)
+    pdf.text(`${passCount} / ${items.length} pass`, tableRight - 60, y)
+    y += 8
+
+    pdf.setFillColor(16, 55, 92)
+    pdf.rect(tableLeft, y, tableRight - tableLeft, headerH, 'F')
+    pdf.setTextColor(255, 255, 255)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setFontSize(8)
+    const hy = y + 12
+    pdf.text('Clause', colClause, hy)
+    pdf.text('Measured', colMeasured, hy)
+    pdf.text('Limit', colLimit, hy)
+    pdf.text('Verdict', colVerdict, hy)
+    y += headerH
+
+    items.forEach((rule, i) => {
+      // Reserve the whole row so a clause never splits across a page break.
+      y = ensureSpace(pdf, y, rowH + 4)
+      if (i % 2 === 1) {
+        pdf.setFillColor(244, 246, 255)
+        pdf.rect(tableLeft, y, tableRight - tableLeft, rowH, 'F')
+      }
+      const digits = rule.unit === '' ? 3 : 2
+      const ty = y + 10
+
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(8)
+      pdf.setTextColor(16, 55, 92)
+      pdf.text(pdfSafe(rule.clause), colClause, ty)
+
+      pdf.setFont('helvetica', 'bold')
+      pdf.text(`${fmt(rule.measured, digits)}${rule.unit}`, colMeasured, ty)
+      pdf.setFont('helvetica', 'normal')
+      pdf.setTextColor(90, 96, 110)
+      pdf.text(`${rule.limit.toFixed(rule.unit === '' ? 2 : 0)}${rule.unit}`, colLimit, ty)
+
+      const rgb = VERDICT_RGB[rule.verdict]
+      pdf.setFont('helvetica', 'bold')
+      pdf.setTextColor(rgb[0], rgb[1], rgb[2])
+      pdf.text(VERDICT_LABEL[rule.verdict], colVerdict, ty)
+
+      // Remark on a second line, so the engineer gets the "why" in the report.
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(7)
+      pdf.setTextColor(120, 126, 140)
+      const remark = pdf.splitTextToSize(pdfSafe(rule.remark), tableRight - tableLeft - 24)[0] ?? ''
+      pdf.text(remark, colClause, ty + 10)
+
+      y += rowH
+    })
+
+    pdf.setDrawColor(220, 224, 235)
+    pdf.setLineWidth(0.5)
+    pdf.line(tableLeft, y, tableRight, y)
+    y += 18
+  }
+
+  return y
+}
+
+// ── Equipment health section ──────────────────────────────────────────────────
+
+/** Weighted equipment-health score with a per-component breakdown. */
+function drawHealthSection(pdf: jsPDF, yIn: number, session: ProcessResponse): number {
+  const components = computeHealth(session)
+  if (components.length === 0) return yIn
+
+  const overall = overallHealthScore(components)
+  const overallStatus = statusOf(overall)
+  const pageW = pdf.internal.pageSize.getWidth()
+  const tableLeft = MARGIN
+  const tableRight = pageW - MARGIN
+
+  let y = ensureSpace(pdf, yIn + 8, 220)
+  y = drawSectionHeading(
+    pdf,
+    y,
+    'Equipment Health Score',
+    'Weighted composite of harmonics, voltage stability, power factor, phase balance and frequency.',
+  )
+
+  // Headline band: score out of 100 plus a proportional bar.
+  const orgb = HEALTH_RGB[overallStatus]
+  pdf.setFillColor(244, 246, 255)
+  pdf.rect(tableLeft, y, tableRight - tableLeft, 46, 'F')
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(22)
+  pdf.setTextColor(PRIMARY)
+  pdf.text(String(overall), tableLeft + 12, y + 30)
+  pdf.setFontSize(10)
+  pdf.setTextColor(140, 146, 160)
+  pdf.text('/ 100', tableLeft + 48, y + 30)
+  pdf.setFontSize(9)
+  pdf.setTextColor(orgb[0], orgb[1], orgb[2])
+  pdf.text(HEALTH_STATUS_LABEL[overallStatus].toUpperCase(), tableLeft + 92, y + 30)
+
+  const barX = tableLeft + 250
+  const barW = tableRight - barX - 12
+  pdf.setFillColor(222, 226, 238)
+  pdf.rect(barX, y + 22, barW, 8, 'F')
+  pdf.setFillColor(orgb[0], orgb[1], orgb[2])
+  pdf.rect(barX, y + 22, (barW * Math.max(0, Math.min(100, overall))) / 100, 8, 'F')
+  y += 60
+
+  const colComponent = tableLeft + 6
+  const colRaw = tableLeft + 200
+  const colWeight = tableLeft + 285
+  const colScore = tableLeft + 360
+  const colStatus = tableLeft + 432
+  const headerH = 18
+  const rowH = 24
+
+  pdf.setFillColor(16, 55, 92)
+  pdf.rect(tableLeft, y, tableRight - tableLeft, headerH, 'F')
+  pdf.setTextColor(255, 255, 255)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(8)
+  const hy = y + 12
+  pdf.text('Component', colComponent, hy)
+  pdf.text('Measured', colRaw, hy)
+  pdf.text('Weight', colWeight, hy)
+  pdf.text('Score', colScore, hy)
+  pdf.text('Status', colStatus, hy)
+  y += headerH
+
+  components.forEach((c, i) => {
+    y = ensureSpace(pdf, y, rowH + 4)
+    if (i % 2 === 1) {
+      pdf.setFillColor(244, 246, 255)
+      pdf.rect(tableLeft, y, tableRight - tableLeft, rowH, 'F')
+    }
+    const ty = y + 10
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(8)
+    pdf.setTextColor(16, 55, 92)
+    pdf.text(pdfSafe(c.label), colComponent, ty)
+    pdf.setTextColor(90, 96, 110)
+    pdf.text(fmt(c.raw, 3), colRaw, ty)
+    pdf.text(`${Math.round(c.weight * 100)}%`, colWeight, ty)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(16, 55, 92)
+    pdf.text(String(c.score), colScore, ty)
+
+    const rgb = HEALTH_RGB[c.status]
+    pdf.setTextColor(rgb[0], rgb[1], rgb[2])
+    pdf.text(HEALTH_STATUS_LABEL[c.status], colStatus, ty)
+
+    pdf.setFont('helvetica', 'normal')
+    pdf.setFontSize(7)
+    pdf.setTextColor(120, 126, 140)
+    const detail = pdf.splitTextToSize(pdfSafe(c.detail), tableRight - tableLeft - 24)[0] ?? ''
+    pdf.text(detail, colComponent, ty + 10)
+    y += rowH
+  })
+
+  pdf.setDrawColor(220, 224, 235)
+  pdf.setLineWidth(0.5)
+  pdf.line(tableLeft, y, tableRight, y)
+  y += 18
+
+  // Recommendations — the actionable half of the health score.
+  y = ensureSpace(pdf, y, 60)
+  pdf.setFont('helvetica', 'bold')
+  pdf.setFontSize(10)
+  pdf.setTextColor(PRIMARY)
+  pdf.text('Recommended actions', tableLeft, y)
+  y += 14
+  pdf.setFontSize(8)
+  for (const c of components) {
+    y = ensureSpace(pdf, y, 26)
+    pdf.setFont('helvetica', 'bold')
+    pdf.setTextColor(16, 55, 92)
+    pdf.text(`${pdfSafe(c.label)}:`, MARGIN + 8, y)
+    pdf.setFont('helvetica', 'normal')
+    pdf.setTextColor(90, 96, 110)
+    const wrapped = pdf.splitTextToSize(pdfSafe(c.recommendation), pageW - MARGIN * 2 - 110)
+    pdf.text(wrapped, MARGIN + 110, y)
+    y += Math.max(12, wrapped.length * 10) + 2
+  }
+
+  return y + 8
+}
+
 export async function exportPqReportPdf(params: {
   metadata: AuditMetadata
   filename: string
@@ -144,6 +468,9 @@ export async function exportPqReportPdf(params: {
   currentHarmonicSpectrum: HarmonicSpectrumPoint[]
   aiObservations: string[]
   chartElements?: HTMLElement[]
+  /** Full session — drives the Compliance and Equipment Health sections.
+   *  Omit it and those sections are simply skipped. */
+  session?: ProcessResponse | null
   saveAs: string
 }) {
   const {
@@ -155,6 +482,7 @@ export async function exportPqReportPdf(params: {
     currentHarmonicSpectrum,
     aiObservations,
     chartElements = [],
+    session,
     saveAs,
   } = params
 
@@ -292,9 +620,18 @@ export async function exportPqReportPdf(params: {
   pdf.setFontSize(10)
   for (const note of aiObservations) {
     y = ensureSpace(pdf, y, 40)
-    const wrapped = pdf.splitTextToSize(note, pageW - MARGIN * 2)
+    const wrapped = pdf.splitTextToSize(pdfSafe(note), pageW - MARGIN * 2)
     pdf.text(wrapped, MARGIN + 8, y)
     y += wrapped.length * 12 + 6
+  }
+
+  // Standards compliance + equipment health, computed from the same functions
+  // the Compliance and Health screens use.
+  if (session) {
+    y = drawComplianceSection(pdf, y, session)
+    // Health is the last flowing section — the charts below start a new page,
+    // so its end position is not carried forward.
+    drawHealthSection(pdf, y, session)
   }
 
   if (chartElements.length > 0) {

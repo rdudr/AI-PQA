@@ -7,132 +7,25 @@ import { loadSession } from '@/utils/sessionDb'
 import { Loading3D } from '@/components/Loading3D'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  computeHealth,
+  overallHealthScore,
+  statusOf,
+  type HealthStatus,
+} from '@/utils/equipmentHealth'
 import type { ProcessResponse } from '@/types/pq'
 
-interface HealthComponent {
-  key: string
-  label: string
-  icon: React.ReactNode
-  raw: number
-  score: number                // 0–100
-  weight: number               // contribution to overall
-  status: 'good' | 'fair' | 'poor'
-  detail: string
-  recommendation: string
+// Icons live with the view, not the scoring logic, so the PDF exporter can
+// reuse computeHealth() without pulling in JSX.
+const COMPONENT_ICONS: Record<string, React.ReactNode> = {
+  harmonic:  <Waves className="size-4 text-white" />,
+  voltage:   <Activity className="size-4 text-white" />,
+  pf:        <Zap className="size-4 text-white" />,
+  balance:   <ShieldCheck className="size-4 text-white" />,
+  frequency: <HeartPulse className="size-4 text-white" />,
 }
 
-function clamp(n: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, n)) }
-
-function statusOf(score: number): HealthComponent['status'] {
-  if (score >= 80) return 'good'
-  if (score >= 55) return 'fair'
-  return 'poor'
-}
-
-function computeHealth(data: ProcessResponse): HealthComponent[] {
-  const a = data.analytics
-  const nominal = data.nominal_voltage ?? 230
-  const out: HealthComponent[] = []
-
-  // ── 1. Harmonic Health — driven by V-THD ─────────────────────────────
-  const vthd_avg = (
-    Number(a.vthd?.phase_a?.avg ?? 0) +
-    Number(a.vthd?.phase_b?.avg ?? 0) +
-    Number(a.vthd?.phase_c?.avg ?? 0)
-  ) / 3
-  const harmScore = clamp(100 - vthd_avg * 12, 0, 100)   // 0% THD → 100, 8.33% → 0
-  out.push({
-    key: 'harmonic',
-    label: 'Harmonic Health',
-    icon: <Waves className="size-4 text-white" />,
-    raw: vthd_avg,
-    score: Math.round(harmScore),
-    weight: 0.25,
-    status: statusOf(harmScore),
-    detail: `Average voltage THD ${vthd_avg.toFixed(2)} % across R/Y/B.`,
-    recommendation: vthd_avg > 5
-      ? 'Consider passive/active harmonic filtering near major VFD/rectifier loads.'
-      : 'Within IEEE 519 limits.',
-  })
-
-  // ── 2. Voltage Stability — deviation from nominal + imbalance ────────
-  const phases = [a.voltage?.phase_a, a.voltage?.phase_b, a.voltage?.phase_c]
-    .map(p => Number(p?.avg ?? 0))
-    .filter(v => v > 0)
-  const avgV = phases.length ? phases.reduce((s, v) => s + v, 0) / phases.length : nominal
-  const devPct = nominal > 0 ? Math.abs(avgV - nominal) / nominal * 100 : 0
-  const vimb = Number((a.voltage as { imbalance_pct?: number | null })?.imbalance_pct ?? 0)
-  const vStability = clamp(100 - devPct * 5 - vimb * 8, 0, 100)
-  out.push({
-    key: 'voltage',
-    label: 'Voltage Stability',
-    icon: <Activity className="size-4 text-white" />,
-    raw: devPct,
-    score: Math.round(vStability),
-    weight: 0.20,
-    status: statusOf(vStability),
-    detail: `Mean ${avgV.toFixed(1)} V (nominal ${nominal} V, ${devPct.toFixed(1)} % off) · imbalance ${vimb.toFixed(2)} %.`,
-    recommendation: devPct > 5
-      ? 'Voltage drifts from nominal — check transformer tap settings or supply contract.'
-      : 'Voltage stable within acceptable bounds.',
-  })
-
-  // ── 3. Power Factor — utility-facing metric ──────────────────────────
-  const pf = Number(a.pf?.avg ?? 1)
-  const pfScore = clamp((pf - 0.7) / (1 - 0.7) * 100, 0, 100)
-  out.push({
-    key: 'pf',
-    label: 'Power Factor',
-    icon: <Zap className="size-4 text-white" />,
-    raw: pf,
-    score: Math.round(pfScore),
-    weight: 0.25,
-    status: statusOf(pfScore),
-    detail: `Average PF ${pf.toFixed(3)}.`,
-    recommendation: pf < 0.95
-      ? `Add APFC capacitor bank to lift PF to ≥ 0.95 and remove utility penalty.`
-      : 'PF healthy — no penalty risk.',
-  })
-
-  // ── 4. Current Balance — three-phase symmetry ────────────────────────
-  const iimb = Number((a.current as { imbalance_pct?: number | null })?.imbalance_pct ?? 0)
-  const balScore = clamp(100 - iimb * 3, 0, 100)
-  out.push({
-    key: 'balance',
-    label: 'Three-phase Balance',
-    icon: <ShieldCheck className="size-4 text-white" />,
-    raw: iimb,
-    score: Math.round(balScore),
-    weight: 0.15,
-    status: statusOf(balScore),
-    detail: `Current imbalance ${iimb.toFixed(2)} %.`,
-    recommendation: iimb > 10
-      ? 'Redistribute single-phase loads — high imbalance accelerates equipment failure.'
-      : 'Three-phase loading is acceptable.',
-  })
-
-  // ── 5. Frequency Stability ────────────────────────────────────────────
-  const f = Number(a.frequency?.avg ?? 50)
-  const fdev = Math.abs(f - 50) / 50 * 100
-  const fScore = clamp(100 - fdev * 20, 0, 100)
-  out.push({
-    key: 'frequency',
-    label: 'Frequency Stability',
-    icon: <HeartPulse className="size-4 text-white" />,
-    raw: f,
-    score: Math.round(fScore),
-    weight: 0.15,
-    status: statusOf(fScore),
-    detail: `Average ${f.toFixed(3)} Hz (${fdev.toFixed(2)} % deviation).`,
-    recommendation: fdev > 1
-      ? 'Frequency drift unusual — investigate generator / grid stability.'
-      : 'Frequency within acceptable grid tolerance.',
-  })
-
-  return out
-}
-
-const COMPONENT_COLORS: Record<HealthComponent['status'], { ring: string; bg: string; chip: string; text: string; bar: string }> = {
+const COMPONENT_COLORS: Record<HealthStatus, { ring: string; bg: string; chip: string; text: string; bar: string }> = {
   good: { ring: 'ring-emerald-200/60', bg: 'from-emerald-50 to-white', chip: 'from-emerald-400 to-emerald-600', text: 'text-emerald-700', bar: 'bg-emerald-500' },
   fair: { ring: 'ring-amber-200/60',   bg: 'from-amber-50 to-white',   chip: 'from-amber-400 to-orange-500',   text: 'text-amber-700',   bar: 'bg-amber-500' },
   poor: { ring: 'ring-red-200/60',     bg: 'from-rose-50 to-white',    chip: 'from-rose-400 to-red-500',       text: 'text-red-700',     bar: 'bg-red-500' },
@@ -150,10 +43,7 @@ export function EquipmentHealthPage() {
   }, [])
 
   const components = useMemo(() => (data ? computeHealth(data) : []), [data])
-  const overallScore = useMemo(() => {
-    if (!components.length) return 0
-    return Math.round(components.reduce((s, c) => s + c.score * c.weight, 0))
-  }, [components])
+  const overallScore = useMemo(() => overallHealthScore(components), [components])
 
   if (loading) return <Loading3D fullScreen message="Computing equipment health…" />
   if (!data) {
@@ -244,7 +134,7 @@ export function EquipmentHealthPage() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className={`inline-flex size-7 items-center justify-center rounded-lg bg-gradient-to-br shadow-md ${col.chip}`}>
-                    {c.icon}
+                    {COMPONENT_ICONS[c.key]}
                   </span>
                   <p className="text-xs font-bold uppercase tracking-wider text-[#10375c]/75">{c.label}</p>
                 </div>

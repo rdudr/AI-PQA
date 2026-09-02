@@ -709,6 +709,9 @@ export function DashboardPage() {
         currentHarmonicSpectrum: data.current_harmonic_spectrum,
         aiObservations: data.ai_observations,
         chartElements,
+        // Range-aware analytics so Compliance/Health agree with the tables and
+        // charts above them when a time filter is active.
+        session: { ...data, analytics },
         saveAs: buildDownloadName({
           company: data.metadata.company_name,
           pqName: data.metadata.pq_analyzer_type,
