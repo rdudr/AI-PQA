@@ -32,11 +32,42 @@ STANDARD_COLUMNS: tuple[str, ...] = (
 )
 
 
+_SMALL_CAP_RE = re.compile(r"^LATIN LETTER SMALL CAPITAL ([A-Z])$")
+_small_cap_cache: dict[str, str] = {}
+
+
+def _fold_small_caps(s: str) -> str:
+    """Replace Unicode small-capital letters with their plain ASCII letter.
+
+    Chauvin Arnoux / ALM exports decorate headers with small capitals -
+    ``U12\u1d1b\u029c\u1d05`` (THD), ``A1\u0280\u1d0d\ua731`` (RMS), ``V1\u1d04\ua730`` (CF).
+    These are *different code points* from ``THD``/``RMS``/``CF`` and NFKC
+    does NOT unify them, so a mapping saved as ``U12-THD (1 min)`` silently
+    fails to match a file that writes the small-cap form - every THD column
+    ends up unmapped and the dashboard shows dashes. Fold them by Unicode
+    name so any letter the vendor chooses to small-cap next is covered too.
+    """
+    import unicodedata
+    out = []
+    for ch in s:
+        if ord(ch) < 128:
+            out.append(ch)
+            continue
+        folded = _small_cap_cache.get(ch)
+        if folded is None:
+            try:
+                m = _SMALL_CAP_RE.match(unicodedata.name(ch))
+            except ValueError:
+                m = None
+            folded = m.group(1).lower() if m else ch
+            _small_cap_cache[ch] = folded
+        out.append(folded)
+    return "".join(out)
+
+
 def slug_column(name: str) -> str:
     import unicodedata
-    s = str(name)
-    # Map ALM specific unicode small caps to standard letters (ʀᴍꜱ -> rms)
-    s = s.replace("\u0280", "r").replace("\u1d0d", "m").replace("\ua731", "s")
+    s = _fold_small_caps(str(name))
     s = unicodedata.normalize('NFKC', s).strip().lower()
     s = re.sub(r"[%\s]+", "_", s)
     s = re.sub(r"[^a-z0-9_]+", "_", s)
@@ -47,7 +78,7 @@ def _normalize_name(name: str) -> str:
     import unicodedata
     if not name:
         return ""
-    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
+    s = unicodedata.normalize('NFKC', _fold_small_caps(str(name))).strip().lower()
     s = re.sub(r"[\s\-_/]+", "", s)
     return s
 
@@ -56,7 +87,7 @@ def _fuzzy_normalize_name(name: str) -> str:
     import unicodedata
     if not name:
         return ""
-    s = unicodedata.normalize('NFKC', str(name)).strip().lower()
+    s = unicodedata.normalize('NFKC', _fold_small_caps(str(name))).strip().lower()
     # Strip common units (with boundaries or inside parenthesis/brackets)
     s = re.sub(r"\b(kvarh|kvar|kwh|kw|kvah|kva|varh|var|wh|va|w|ka|a|v|volt|amps|amp|ampere|amperes|watts|watt)\b", "", s)
     s = re.sub(r"\((kvarh|kvar|kwh|kw|kvah|kva|varh|var|wh|va|w|ka|a|v|volt|amps|amp|ampere|amperes|watts|watt)\)", "", s)
