@@ -116,6 +116,7 @@ Bookmark: Troubleshooting section (line ~520)
 ### Getting Started
 - [`DOWNLOAD_NORMALIZED_EXCEL_GUIDE.md`](./DOWNLOAD_NORMALIZED_EXCEL_GUIDE.md) - User quick start
 - [`FEATURE_COMPLETE_SUMMARY.md`](./FEATURE_COMPLETE_SUMMARY.md) - Feature overview
+- [`POSTMAN_EXPORT.md`](./POSTMAN_EXPORT.md) - Export a recording for the PostMan (KISEM) report generator
 
 ### How It Works
 - [`NORMALIZED_EXCEL_IMPLEMENTATION.md`](./NORMALIZED_EXCEL_IMPLEMENTATION.md) - Technical details

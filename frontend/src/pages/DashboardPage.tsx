@@ -13,6 +13,7 @@ import {
   Gauge,
   LayoutDashboard,
   Download,
+  FileSpreadsheet,
   Play,
   Printer,
   Square,
@@ -27,7 +28,10 @@ import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
 import type { AnalyticsPayload, MetricBlock, ProcessResponse } from '@/types/pq'
-import { downloadNormalizedSessionExcel } from '@/services/api'
+import { downloadNormalizedSessionExcel, downloadPostmanExcel } from '@/services/api'
+import type { PostmanRole } from '@/services/api'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { exportPqReportPdf } from '@/utils/pqReportPdf'
 import { AnalyticsSummaryTable } from '@/tables/AnalyticsSummaryTable'
 import { KpiCard } from '@/cards/KpiCard'
@@ -271,6 +275,14 @@ export function DashboardPage() {
   const rangePickerRef = useRef<HTMLDivElement>(null)
   const [pdfBusy, setPdfBusy] = useState(false)
   const [normalizedExcelBusy, setNormalizedExcelBusy] = useState(false)
+  // "Export for PostMan" — the report generator wants to know which panel of
+  // the plant this recording belongs to, so a small form sits behind the button.
+  const [postmanOpen, setPostmanOpen] = useState(false)
+  const [postmanBusy, setPostmanBusy] = useState(false)
+  const [postmanError, setPostmanError] = useState<string | null>(null)
+  const [postmanRole, setPostmanRole] = useState<PostmanRole>('pcc')
+  const [postmanPanel, setPostmanPanel] = useState('')
+  const [postmanRecId, setPostmanRecId] = useState('')
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false)
   const [data, setData] = useState<ProcessResponse | null>(null)
   const [dbLoading, setDbLoading] = useState(true)
@@ -758,6 +770,31 @@ export function DashboardPage() {
     }
   }
 
+  const exportForPostman = async () => {
+    setPostmanBusy(true)
+    setPostmanError(null)
+    try {
+      const { blob, filename } = await downloadPostmanExcel(data.session_id, data.metadata, {
+        role: postmanRole,
+        panelName: postmanPanel.trim() || data.metadata.machine_name,
+        recordingId: postmanRecId.trim(),
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      setPostmanOpen(false)
+    } catch (err) {
+      setPostmanError(err instanceof Error ? err.message : 'Export failed')
+    } finally {
+      setPostmanBusy(false)
+    }
+  }
+
   return (
     <div ref={reportRef} className="space-y-8 bg-transparent">
 
@@ -949,8 +986,68 @@ export function DashboardPage() {
             <Button type="button" variant="accent" disabled={pdfBusy} onClick={exportPdf}>
               <Printer className="size-4" /> Download audit PDF
             </Button>
+            <Button type="button" variant="outline" onClick={() => setPostmanOpen((o) => !o)}>
+              <FileSpreadsheet className="size-4" /> Export for PostMan
+            </Button>
           </div>
         </div>
+
+        {/* ── Export for PostMan ──────────────────────────────────────────
+              One recording per workbook. PostMan drops it into the
+              "Electrical distribution" chapter under the panel named here,
+              and joins it to the FOX KISEM panel sheet by the recording ID. */}
+        {postmanOpen && (
+          <div data-html2canvas-ignore className="glass-panel mt-4 rounded-2xl border border-[#10375c]/10 p-4">
+            <p className="text-sm font-semibold text-[#10375c]">Export for PostMan report</p>
+            <p className="mt-1 text-xs text-[#10375c]/65">
+              Tell PostMan where this recording was taken. The panel name and recording ID should match what
+              was entered in the FOX KISEM app, so the report can join the measurement to the right panel.
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label htmlFor="postman-role">Measured at</Label>
+                <select
+                  id="postman-role"
+                  value={postmanRole}
+                  onChange={(e) => setPostmanRole(e.target.value as PostmanRole)}
+                  className="flex h-10 w-full rounded-xl border border-[#10375c]/12 bg-white/70 px-3 py-2 text-sm text-[#10375c] shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-[#f3c623]/60"
+                >
+                  <option value="main">Plant main input (incomer)</option>
+                  <option value="pcc">PCC panel</option>
+                  <option value="mcc">MCC panel</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="postman-panel">Panel name</Label>
+                <Input
+                  id="postman-panel"
+                  placeholder={data.metadata.machine_name || 'e.g. Old Panel PCC'}
+                  value={postmanPanel}
+                  onChange={(e) => setPostmanPanel(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="postman-recid">Recording ID</Label>
+                <Input
+                  id="postman-recid"
+                  placeholder="e.g. REC-2026-0609-01"
+                  value={postmanRecId}
+                  onChange={(e) => setPostmanRecId(e.target.value)}
+                />
+              </div>
+            </div>
+            {postmanError && <p className="mt-2 text-xs text-red-600">{postmanError}</p>}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button type="button" variant="default" disabled={postmanBusy} onClick={exportForPostman}>
+                <Download className="size-4" />
+                {postmanBusy ? 'Preparing workbook…' : 'Download PostMan workbook'}
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setPostmanOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* ── Site Summary + Recording Summary — stacked full-width
               Both use the project's `glass-panel` look with a light-blue tint
