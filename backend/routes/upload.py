@@ -12,6 +12,7 @@ from models.schema import AuditMetadata, ProcessResponse, TablePageResponse
 from reports.postman_bundle import build_postman_bundle
 from reports.postman_export import build_postman_workbook
 from services import db
+from services import postman_queue
 from services.config_store import get_custom_columns, get_mappings
 from services.processing import _rows_from_df, _scale_power_columns, _apply_device_voltage_multiplier, process_bytes
 from services.session_store import session_store
@@ -742,25 +743,59 @@ def export_session_bundle_get(
     panel_name: str = Query("", description="Panel / machine name as written in FOX KISEM"),
     recording_id: str = Query("", description="Recording ID as written on the FOX KISEM panel sheet"),
 ) -> dict:
-    """Same as the POST form; metadata from the persisted summary. This is
-    the URL PostMan's "Pull from PQ analyser" calls."""
+    """What PostMan pulls. A recording the engineer sent with "Send to
+    PostMan" comes back exactly as sent (panel, findings, charts); anything
+    else is built on the fly from the frame with the query parameters."""
+    queued = postman_queue.get(session_id)
+    if queued is not None:
+        return queued
     return _postman_bundle(session_id, PostmanExportRequest(role=role, panel_name=panel_name, recording_id=recording_id))
+
+
+class PostmanSendRequest(PostmanExportRequest):
+    """What "Send to PostMan" carries beside the recording: the dashboard's
+    own findings (so the report prints exactly what the engineer saw) and
+    its chart images."""
+    compliance: dict | None = None      # {rules, summary} from utils/compliance.ts
+    health: dict | None = None          # {components, overall, status} from utils/equipmentHealth.ts
+    cost: dict | None = None            # {inputs, result} from utils/costOfPoorQuality.ts
+    charts: list[dict] | None = None    # [{title, image (data URL)}] captured from the dashboard
+
+
+@router.post("/session/{session_id}/postman-send")
+def send_to_postman(session_id: str, req: PostmanSendRequest) -> dict:
+    """Queue this recording for PostMan under the chosen panel. The link
+    between the two tools: PostMan lists the queue and pulls from it."""
+    bundle = _postman_bundle(session_id, req)
+    # The dashboard's figures are the ones the engineer saw; they win over
+    # the server-side port when both exist.
+    if req.compliance:
+        bundle["compliance"] = req.compliance
+    if req.health:
+        bundle["health"] = req.health
+    if req.cost:
+        bundle["cost"] = req.cost
+    if req.charts:
+        bundle["charts"] = [{"title": str(c.get("title", "")), "image": str(c.get("image", "")), "w": c.get("w"), "h": c.get("h")}
+                            for c in req.charts if c.get("image")]
+    bundle["sent_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    postman_queue.put(session_id, bundle)
+    return {"ok": True, "session_id": session_id, "panel": bundle["panel"], "role": bundle["role"],
+            "recording_id": bundle["recording_id"], "charts": len(bundle.get("charts") or []),
+            "expires_hours": db.RETENTION_HOURS}
+
+
+@router.delete("/session/{session_id}/postman-send")
+def unsend_to_postman(session_id: str) -> dict:
+    postman_queue.remove(session_id)
+    return {"ok": True}
 
 
 @router.get("/postman/sessions")
 def list_postman_sessions() -> list[dict]:
-    """Recordings PostMan can pull: the persisted history when there is a
-    database, plus whatever this process still holds in memory."""
-    seen: dict[str, dict] = {}
-    for s in db.list_summaries():
-        seen[s["session_id"]] = dict(s, in_memory=False)
-    for sid in session_store.ids():
-        if sid in seen:
-            seen[sid]["in_memory"] = True
-        else:
-            seen[sid] = {"session_id": sid, "filename": "", "company_name": "", "plant_name": "",
-                         "analyzer": "", "audit_date": "", "total_rows": 0, "quality_score": 0, "in_memory": True}
-    return list(seen.values())
+    """The recordings sent to PostMan and not yet expired (24 h)."""
+    db.purge_expired()
+    return postman_queue.listing()
 
 
 @router.post("/session/{session_id}/postman-excel")

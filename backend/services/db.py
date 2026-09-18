@@ -74,7 +74,18 @@ _DDL_STATEMENTS = (
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
     )
     """,
+    """
+    CREATE TABLE IF NOT EXISTS postman_bundles (
+        session_id    TEXT PRIMARY KEY,
+        payload       JSONB NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """,
 )
+
+# Everything the server keeps is working data for the report, not an
+# archive: sessions, frames and PostMan bundles are dropped after this long.
+RETENTION_HOURS = 24
 
 
 def enabled() -> bool:
@@ -343,3 +354,90 @@ def load_frame(session_id: str) -> bytes | None:
         logger.exception("load_frame failed for %s", session_id)
         _trip_breaker()
         return None
+
+
+# ── PostMan bundles (what "Send to PostMan" queued) ────────────────────────
+
+def _save_bundle_sync(session_id: str, payload: dict[str, Any]) -> None:
+    try:
+        pool = _get_pool()
+        if pool is None:
+            return
+        import json as _json
+        with pool.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO postman_bundles (session_id, payload)
+                VALUES (%s, %s::jsonb)
+                ON CONFLICT (session_id) DO UPDATE SET
+                    payload    = EXCLUDED.payload,
+                    created_at = now()
+                """,
+                (session_id, _json.dumps(payload)),
+            )
+    except Exception:
+        logger.exception("save_bundle failed for %s", session_id)
+        _trip_breaker()
+
+
+def save_bundle(session_id: str, payload: dict[str, Any]) -> None:
+    if not enabled() or _breaker_tripped():
+        return
+    _run_bg(_save_bundle_sync, session_id, payload)
+
+
+def load_bundles() -> dict[str, tuple[dict[str, Any], float]]:
+    """All stored bundles as {session_id: (payload, created_at epoch)}."""
+    if not enabled() or _breaker_tripped():
+        return {}
+    try:
+        pool = _get_pool()
+        if pool is None:
+            return {}
+        with pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT session_id, payload, EXTRACT(EPOCH FROM created_at) FROM postman_bundles"
+            ).fetchall()
+        return {r[0]: (r[1], float(r[2])) for r in rows}
+    except Exception:
+        logger.exception("load_bundles failed")
+        _trip_breaker()
+        return {}
+
+
+def delete_bundle(session_id: str) -> None:
+    if not enabled() or _breaker_tripped():
+        return
+    try:
+        pool = _get_pool()
+        if pool is None:
+            return
+        with pool.connection() as conn:
+            conn.execute("DELETE FROM postman_bundles WHERE session_id = %s", (session_id,))
+    except Exception:
+        logger.exception("delete_bundle failed for %s", session_id)
+        _trip_breaker()
+
+
+def purge_expired(hours: int = RETENTION_HOURS) -> None:
+    """Drop sessions, frames and bundles older than the retention window.
+    Called from the request path, fire-and-forget."""
+    if not enabled() or _breaker_tripped():
+        return
+
+    def _run() -> None:
+        try:
+            pool = _get_pool()
+            if pool is None:
+                return
+            with pool.connection() as conn:
+                for table in ("pq_sessions", "pq_frames", "postman_bundles"):
+                    conn.execute(
+                        f"DELETE FROM {table} WHERE created_at < now() - make_interval(hours => %s)",
+                        (hours,),
+                    )
+        except Exception:
+            logger.exception("purge_expired failed")
+            _trip_breaker()
+
+    _run_bg(_run)

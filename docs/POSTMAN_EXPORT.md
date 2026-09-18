@@ -143,15 +143,46 @@ there are a **port of `frontend/src/utils/compliance.ts` and
 verdict bands, same wording), or the dashboard and the report would
 disagree.
 
+### "Send to PostMan" — the link
+
+The dashboard button **Send to PostMan** is the hand-off. It asks where the
+recording was taken (main input / PCC / MCC, panel name, recording ID — as
+in FOX KISEM) and then `POST /api/upload/session/{id}/postman-send` with:
+
+* the dashboard's own **compliance** rules and score (`utils/compliance.ts`),
+* its **equipment health** components and overall score (`utils/equipmentHealth.ts`),
+* the **cost of poor quality** as typed on the Cost page (`utils/costOfPoorQuality.ts`; inputs are remembered per session),
+* the **charts themselves** — every `[data-report-chart]` on the dashboard captured as a JPEG (`utils/postmanSend.ts`, same capture as the audit PDF),
+* `data_quality` and `nominal_voltage`.
+
+The server builds the bundle from the full recording (stats, thinned
+series, harmonics, events), lays the dashboard's figures over it (they are
+what the engineer saw, so they win), and parks it in the **PostMan queue**
+(`services/postman_queue.py`; also the `postman_bundles` table when
+`DATABASE_URL` is set, so a Space restart keeps it). `GET
+/api/upload/postman/sessions` lists that queue — panel, role, recording ID,
+plant, engineer, samples, compliance score, health, chart count, sent and
+expiry times — and `GET /session/{id}/postman.json` returns a queued bundle
+exactly as sent. `DELETE /session/{id}/postman-send` withdraws one.
+
+**Retention: 24 hours.** Sessions in memory, the persisted history
+(`pq_sessions`, `pq_frames`) and the queue all expire after
+`db.RETENTION_HOURS`; the server is a hand-off, not an archive.
+
+In PostMan the recording prints under its panel with the analyser's
+charts in place of PostMan's own drawings (PF / THD under the panel, all of
+them in Annexure A), plus *Standards compliance*, *Equipment health*, *Cost
+of poor power quality*, *Events detected*, data quality and observations.
+
 Two ways into PostMan:
 
-* **Pull** — on PostMan's *Electrical distribution* page, enter this
-  server's address, *List recordings*, tick the sessions, pick the panel
-  each was measured at (or choose it from the FOX panels, which fills the
-  recording ID), *Import selected recordings*. Nothing is downloaded by
-  hand. CORS is open on this API, so PostMan can call it from any origin.
-* **File** — dashboard → *Export for PostMan* → *Download PostMan bundle
-  (JSON)*, then drop the `.json` on any PostMan drop box (offline route).
+* **Pull** — on PostMan's *Electrical distribution* page (the analyser
+  address is pre-filled with the team's Space), *List recordings* shows what
+  was sent, with panel and recording ID already set; *Import selected
+  recordings*. A FOX panel can be matched there if names differ. CORS is
+  open on this API, so PostMan can call it from any origin.
+* **File** — *Send to PostMan* → *Save bundle file instead*, then drop the
+  `.json` on any PostMan drop box (offline route).
 
 The Excel export stays as the fallback for an analyser file that only
 exists as a workbook.
@@ -165,8 +196,8 @@ The two rules from it:
 
 1. **A change here is a change there.** A field added, renamed or
    re-unitised in `backend/reports/postman_bundle.py` or
-   `postman_export.py`, a change to the IEEE-519 / EN 50160 limits, the
-   health scoring or the event detectors, is matched in PostMan
+   `postman_export.py`, `utils/postmanSend.ts`, a change to the IEEE-519 / EN 50160
+   limits, the health scoring, the cost formula or the event detectors, is matched in PostMan
    (`src/p19_pq.js` — `PQ_COLS`, `pqMeta`, `importPq`, `recSummaryBlocks`,
    `recCharts`; `src/p19b_pqlink.js` — `importPqBundle`, `pqPullCard`,
    `pqComplianceBlocks`, `pqHealthBlocks`, `pqEventBlocks`) in the same

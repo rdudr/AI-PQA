@@ -13,8 +13,8 @@ import {
   Gauge,
   LayoutDashboard,
   Download,
-  FileSpreadsheet,
   Play,
+  Send,
   Printer,
   Square,
   Timer,
@@ -28,7 +28,8 @@ import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
 import type { AnalyticsPayload, MetricBlock, ProcessResponse } from '@/types/pq'
-import { downloadNormalizedSessionExcel, downloadPostmanExcel, downloadPostmanBundle } from '@/services/api'
+import { downloadNormalizedSessionExcel, downloadPostmanBundle } from '@/services/api'
+import { sendToPostman } from '@/utils/postmanSend'
 import type { PostmanRole } from '@/services/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -280,6 +281,7 @@ export function DashboardPage() {
   const [postmanOpen, setPostmanOpen] = useState(false)
   const [postmanBusy, setPostmanBusy] = useState(false)
   const [postmanError, setPostmanError] = useState<string | null>(null)
+  const [postmanDone, setPostmanDone] = useState<string | null>(null)
   const [postmanRole, setPostmanRole] = useState<PostmanRole>('pcc')
   const [postmanPanel, setPostmanPanel] = useState('')
   const [postmanRecId, setPostmanRecId] = useState('')
@@ -770,18 +772,37 @@ export function DashboardPage() {
     }
   }
 
-  const exportForPostman = async (kind: 'excel' | 'json' = 'excel') => {
+  const postmanOpts = () => ({
+    role: postmanRole,
+    panelName: postmanPanel.trim() || data.metadata.machine_name,
+    recordingId: postmanRecId.trim(),
+  })
+
+  // The link to PostMan: park this recording's findings and charts on the
+  // server under the chosen panel; PostMan pulls from that queue.
+  const linkToPostman = async () => {
+    setPostmanBusy(true)
+    setPostmanError(null)
+    setPostmanDone(null)
+    try {
+      const chartElements = reportRef.current
+        ? Array.from(reportRef.current.querySelectorAll<HTMLElement>('[data-report-chart]'))
+        : []
+      const res = await sendToPostman(data, data.metadata, postmanOpts(), chartElements)
+      setPostmanDone(`Sent to PostMan as ${res.panel} with ${res.charts} charts. Pull it from PostMan's Electrical distribution page within ${res.expires_hours} h.`)
+    } catch (err) {
+      setPostmanError(err instanceof Error ? err.message : 'Send failed')
+    } finally {
+      setPostmanBusy(false)
+    }
+  }
+
+  // Offline route: the same bundle as a file, for a PostMan without a connection.
+  const downloadForPostman = async () => {
     setPostmanBusy(true)
     setPostmanError(null)
     try {
-      const opts = {
-        role: postmanRole,
-        panelName: postmanPanel.trim() || data.metadata.machine_name,
-        recordingId: postmanRecId.trim(),
-      }
-      const { blob, filename } = kind === 'json'
-        ? await downloadPostmanBundle(data.session_id, data.metadata, opts, { data_quality: data.data_quality, nominal_voltage: data.nominal_voltage })
-        : await downloadPostmanExcel(data.session_id, data.metadata, opts)
+      const { blob, filename } = await downloadPostmanBundle(data.session_id, data.metadata, postmanOpts(), { data_quality: data.data_quality, nominal_voltage: data.nominal_voltage })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -790,7 +811,6 @@ export function DashboardPage() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-      setPostmanOpen(false)
     } catch (err) {
       setPostmanError(err instanceof Error ? err.message : 'Export failed')
     } finally {
@@ -990,7 +1010,7 @@ export function DashboardPage() {
               <Printer className="size-4" /> Download audit PDF
             </Button>
             <Button type="button" variant="outline" onClick={() => setPostmanOpen((o) => !o)}>
-              <FileSpreadsheet className="size-4" /> Export for PostMan
+              <Send className="size-4" /> Send to PostMan
             </Button>
           </div>
         </div>
@@ -1001,12 +1021,12 @@ export function DashboardPage() {
               and joins it to the FOX KISEM panel sheet by the recording ID. */}
         {postmanOpen && (
           <div data-html2canvas-ignore className="glass-panel mt-4 rounded-2xl border border-[#10375c]/10 p-4">
-            <p className="text-sm font-semibold text-[#10375c]">Export for PostMan report</p>
+            <p className="text-sm font-semibold text-[#10375c]">Send to PostMan report</p>
             <p className="mt-1 text-xs text-[#10375c]/65">
-              Tell PostMan where this recording was taken. The panel name and recording ID should match what
-              was entered in the FOX KISEM app, so the report can join the measurement to the right panel.
-              The JSON bundle carries this analyser's compliance verdicts, health scores and events, computed here;
-              PostMan can also pull it straight from this server (session {data.session_id.slice(0, 8)}…) without a file.
+              Say where this recording was taken (the panel name and recording ID as entered in the FOX KISEM app)
+              and send. The processed data, this dashboard's compliance verdicts, equipment health, the cost-of-poor-quality
+              figures from the Cost page and these very charts go to the server, where PostMan picks them up
+              (Electrical distribution, List recordings). The server keeps them for 24 hours.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
@@ -1042,13 +1062,14 @@ export function DashboardPage() {
               </div>
             </div>
             {postmanError && <p className="mt-2 text-xs text-red-600">{postmanError}</p>}
+            {postmanDone && <p className="mt-2 text-xs text-emerald-700">{postmanDone}</p>}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" variant="default" disabled={postmanBusy} onClick={() => exportForPostman('json')}>
-                <Download className="size-4" />
-                {postmanBusy ? 'Preparing…' : 'Download PostMan bundle (JSON)'}
+              <Button type="button" variant="default" disabled={postmanBusy} onClick={linkToPostman}>
+                <Send className="size-4" />
+                {postmanBusy ? 'Sending…' : 'Send to PostMan'}
               </Button>
-              <Button type="button" variant="secondary" disabled={postmanBusy} onClick={() => exportForPostman('excel')}>
-                <FileSpreadsheet className="size-4" /> Workbook (Excel)
+              <Button type="button" variant="ghost" disabled={postmanBusy} onClick={downloadForPostman} title="For a PostMan without a connection to this server">
+                <Download className="size-4" /> Save bundle file instead
               </Button>
               <Button type="button" variant="ghost" onClick={() => setPostmanOpen(false)}>
                 Cancel
