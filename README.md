@@ -21,7 +21,7 @@ An AI-powered web application designed to parse, align, and analyze Power Qualit
 * **AI Anomaly Detection** — Automated classification of events like voltage sags, swells, transients, and high THD.
 * **Compliance Checks** — Standard compliance reports based on **IEEE 519**, **EN 50160**, and **IEC 61000**.
 * **PDF Report Generation** — Export print-ready reports containing analysis summaries, metrics tables, and charts.
-* **Export for PostMan** — One click on the dashboard produces a `PostMan-PQ v1` workbook that the KISEM **PostMan** report generator imports directly into its *Electrical distribution* chapter (main input / PCC / MCC sections and the measurement-chart annexure). Contract and usage: [`docs/POSTMAN_EXPORT.md`](docs/POSTMAN_EXPORT.md).
+* **PostMan link** — The KISEM **PostMan** report generator pulls each recording's findings straight from this server (`/api/upload/session/{id}/postman.json`: statistics, thinned charts, harmonics, the IEEE 519 / EN 50160 compliance table, equipment health, events, data quality) into its *Electrical distribution* chapter, or the dashboard downloads the same bundle as JSON / Excel. Contract and usage: [`docs/POSTMAN_EXPORT.md`](docs/POSTMAN_EXPORT.md).
 
 ---
 

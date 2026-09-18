@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from models.schema import AuditMetadata, ProcessResponse, TablePageResponse
+from reports.postman_bundle import build_postman_bundle
 from reports.postman_export import build_postman_workbook
 from services import db
 from services.config_store import get_custom_columns, get_mappings
@@ -653,6 +654,10 @@ class PostmanExportRequest(BaseModel):
     role: str = "pcc"            # main | pcc | mcc — where the panel sits in the SLD
     panel_name: str = ""         # defaults to metadata.machine_name
     recording_id: str = ""       # the ID written on the FOX KISEM panel sheet
+    # The dashboard can pass what only the original ProcessResponse holds,
+    # so a server without a database still fills the bundle completely.
+    data_quality: dict | None = None
+    nominal_voltage: float | None = None
 
 
 def _postman_response(session_id: str, req: PostmanExportRequest) -> StreamingResponse:
@@ -682,6 +687,80 @@ def _postman_response(session_id: str, req: PostmanExportRequest) -> StreamingRe
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+def _postman_meta(session_id: str, req: PostmanExportRequest) -> tuple[AuditMetadata | None, str, dict | None]:
+    """Metadata from the request, else from the persisted summary."""
+    payload = db.load_summary(session_id) if db.enabled() else None
+    meta = req.metadata
+    source_file = ""
+    if payload:
+        source_file = str(payload.get("filename") or "")
+        if meta is None:
+            try:
+                meta = AuditMetadata.model_validate(payload.get("metadata") or {})
+            except Exception:  # noqa: BLE001
+                meta = None
+    return meta, source_file, payload
+
+
+def _postman_bundle(session_id: str, req: PostmanExportRequest) -> dict:
+    df = session_store.get(session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="Session expired or unknown.")
+    meta, source_file, payload = _postman_meta(session_id, req)
+    if req.data_quality is not None or req.nominal_voltage is not None:
+        payload = dict(payload or {})
+        if req.data_quality is not None:
+            payload["data_quality"] = req.data_quality
+        if req.nominal_voltage is not None:
+            payload["nominal_voltage"] = req.nominal_voltage
+    try:
+        return build_postman_bundle(
+            df, meta,
+            role=req.role, panel_name=req.panel_name, recording_id=req.recording_id,
+            session_id=session_id, source_file=source_file, summary=payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/session/{session_id}/postman.json")
+def export_session_bundle(session_id: str, req: PostmanExportRequest) -> dict:
+    """PostMan bundle (PostMan-PQ-JSON v1): stats, thinned series, harmonics,
+    the compliance verdicts, equipment health, events, data quality and the
+    observations — everything computed here, so the report generator prints
+    this analyser's findings without re-processing a large recording.
+    See docs/POSTMAN_EXPORT.md."""
+    return _postman_bundle(session_id, req)
+
+
+@router.get("/session/{session_id}/postman.json")
+def export_session_bundle_get(
+    session_id: str,
+    role: str = Query("pcc", description="main | pcc | mcc"),
+    panel_name: str = Query("", description="Panel / machine name as written in FOX KISEM"),
+    recording_id: str = Query("", description="Recording ID as written on the FOX KISEM panel sheet"),
+) -> dict:
+    """Same as the POST form; metadata from the persisted summary. This is
+    the URL PostMan's "Pull from PQ analyser" calls."""
+    return _postman_bundle(session_id, PostmanExportRequest(role=role, panel_name=panel_name, recording_id=recording_id))
+
+
+@router.get("/postman/sessions")
+def list_postman_sessions() -> list[dict]:
+    """Recordings PostMan can pull: the persisted history when there is a
+    database, plus whatever this process still holds in memory."""
+    seen: dict[str, dict] = {}
+    for s in db.list_summaries():
+        seen[s["session_id"]] = dict(s, in_memory=False)
+    for sid in session_store.ids():
+        if sid in seen:
+            seen[sid]["in_memory"] = True
+        else:
+            seen[sid] = {"session_id": sid, "filename": "", "company_name": "", "plant_name": "",
+                         "analyzer": "", "audit_date": "", "total_rows": 0, "quality_score": 0, "in_memory": True}
+    return list(seen.values())
 
 
 @router.post("/session/{session_id}/postman-excel")

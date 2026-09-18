@@ -44,6 +44,12 @@ class SessionStore:
                 # still cached in memory for this process.
                 logger.exception("Could not persist frame for %s", session_id)
 
+    def ids(self) -> list[str]:
+        """Session ids held in memory, newest first — what PostMan can pull
+        from a server that has no database."""
+        with self._lock:
+            return list(reversed(self._frames.keys()))
+
     def get(self, session_id: str) -> pd.DataFrame | None:
         with self._lock:
             df = self._frames.get(session_id)

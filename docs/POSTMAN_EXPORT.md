@@ -112,6 +112,50 @@ value (`PostMan-PQ v2`). PostMan tolerates a few common instrument aliases
 (`U12`, `A1`, `P`, `S`, `Q`, `Hz` …) but the standard names above are the
 ones to rely on.
 
+## The bundle — format `PostMan-PQ-JSON v1` (preferred)
+
+The workbook carries raw samples and leaves PostMan to redo the arithmetic
+in the browser. The **bundle** moves all processing here, so a recording of
+any length (a week at one second: ~8 s on the server, ~75 kB to PostMan)
+prints the analyser's *own* findings, section by section:
+
+| Bundle field | What PostMan prints, and where |
+|---|---|
+| `stats` (min / avg / max / rms per parameter, `v_imbalance_pct`, `i_imbalance_pct`) | *Power quality analysis* table under the panel; the imbalance line |
+| `series` (every parameter thinned to 240 bucket means, `t` labels) | PF / THD curves under the panel; V, I, power and harmonic charts in **Annexure A** |
+| `harmonics` (mean magnitude per order, V and I) | harmonic-order charts in the annexure |
+| `compliance` (rules: standard, clause, measured, limit, verdict, remark; summary score) | *Standards compliance — REC* table and score under the panel; a **Compliance** column in the PCC load summary |
+| `health` (five components, weighted overall) | *Equipment health — REC* KPIs, table and chart under the panel |
+| `events` (counts by type and severity, the 40 worst, dip/swell summary) | *Events detected — REC* under the panel |
+| `data_quality`, `observations` | data-quality line and the analyser's observations under the panel |
+
+Endpoints:
+
+```
+POST /api/upload/session/{session_id}/postman.json   { metadata, role, panel_name, recording_id, data_quality?, nominal_voltage? }
+GET  /api/upload/session/{session_id}/postman.json?role=pcc&panel_name=...&recording_id=...
+GET  /api/upload/postman/sessions                     # what PostMan can pull: persisted history + in-memory sessions
+```
+
+Code: `backend/reports/postman_bundle.py`. The compliance and health rules
+there are a **port of `frontend/src/utils/compliance.ts` and
+`equipmentHealth.ts`** — the three must stay identical (same limits, same
+verdict bands, same wording), or the dashboard and the report would
+disagree.
+
+Two ways into PostMan:
+
+* **Pull** — on PostMan's *Electrical distribution* page, enter this
+  server's address, *List recordings*, tick the sessions, pick the panel
+  each was measured at (or choose it from the FOX panels, which fills the
+  recording ID), *Import selected recordings*. Nothing is downloaded by
+  hand. CORS is open on this API, so PostMan can call it from any origin.
+* **File** — dashboard → *Export for PostMan* → *Download PostMan bundle
+  (JSON)*, then drop the `.json` on any PostMan drop box (offline route).
+
+The Excel export stays as the fallback for an analyser file that only
+exists as a workbook.
+
 ## Keeping the two in step
 
 The full contract for all the field apps — what each feeds, the formulas
@@ -119,11 +163,13 @@ that must stay identical, the checklist for a change — is
 [`docs/INTEGRATIONS.md` in PostMan](https://github.com/rdudr/PostMAN/blob/main/docs/INTEGRATIONS.md).
 The two rules from it:
 
-1. **A change here is a change there.** A field or column added, renamed or
-   re-unitised in `backend/reports/postman_export.py`, a change to the
-   IEEE-519 / EN 50160 limits or to how min / avg / max and the harmonic
-   spectrum are worked, is matched in PostMan (`src/p19_pq.js` — `PQ_COLS`,
-   `pqMeta`, `importPq`, `recSummaryBlocks`, `recCharts`) in the same
+1. **A change here is a change there.** A field added, renamed or
+   re-unitised in `backend/reports/postman_bundle.py` or
+   `postman_export.py`, a change to the IEEE-519 / EN 50160 limits, the
+   health scoring or the event detectors, is matched in PostMan
+   (`src/p19_pq.js` — `PQ_COLS`, `pqMeta`, `importPq`, `recSummaryBlocks`,
+   `recCharts`; `src/p19b_pqlink.js` — `importPqBundle`, `pqPullCard`,
+   `pqComplianceBlocks`, `pqHealthBlocks`, `pqEventBlocks`) in the same
    sitting, with the `Format` tag bumped when an old file would otherwise be
    misread. Likewise, a wording, unit or verdict PostMan improves in the
    report is carried back into this app's dashboard and audit PDF.

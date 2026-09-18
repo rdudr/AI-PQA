@@ -139,6 +139,37 @@ export async function downloadPostmanExcel(
   return { blob: await r.blob(), filename }
 }
 
+/** The PostMan bundle (PostMan-PQ-JSON v1): stats, thinned series, harmonics,
+ *  compliance verdicts, equipment health, events, data quality and the
+ *  observations, all computed on the server. PostMan can also pull this
+ *  straight from the server ("Pull from PQ analyser"); the download is the
+ *  offline route. */
+export async function downloadPostmanBundle(
+  sessionId: string,
+  metadata: AuditMetadata,
+  opts: PostmanExportOptions,
+  extra?: { data_quality?: unknown; nominal_voltage?: number },
+): Promise<{ blob: Blob; filename: string }> {
+  const r = await fetch(
+    `${API_BASE}/api/upload/session/${encodeURIComponent(sessionId)}/postman.json`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ metadata, role: opts.role, panel_name: opts.panelName, recording_id: opts.recordingId, ...(extra ?? {}) }),
+    },
+  )
+  if (!r.ok) {
+    const errBody = await r.json().catch(() => null)
+    const detail =
+      errBody && typeof errBody === 'object' && 'detail' in errBody
+        ? String((errBody as { detail: unknown }).detail)
+        : r.statusText
+    throw new Error(detail || 'Could not build the PostMan bundle')
+  }
+  const safe = (opts.recordingId || opts.panelName || sessionId.slice(0, 8)).replace(/[^A-Za-z0-9._-]+/g, '_')
+  return { blob: await r.blob(), filename: `PQ_${safe}_PostMan.json` }
+}
+
 export async function processUpload(
   files: { file: File; model: string }[],
   metadata: AuditMetadata,

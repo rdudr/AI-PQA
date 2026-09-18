@@ -28,7 +28,7 @@ import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
 import type { AnalyticsPayload, MetricBlock, ProcessResponse } from '@/types/pq'
-import { downloadNormalizedSessionExcel, downloadPostmanExcel } from '@/services/api'
+import { downloadNormalizedSessionExcel, downloadPostmanExcel, downloadPostmanBundle } from '@/services/api'
 import type { PostmanRole } from '@/services/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -770,15 +770,18 @@ export function DashboardPage() {
     }
   }
 
-  const exportForPostman = async () => {
+  const exportForPostman = async (kind: 'excel' | 'json' = 'excel') => {
     setPostmanBusy(true)
     setPostmanError(null)
     try {
-      const { blob, filename } = await downloadPostmanExcel(data.session_id, data.metadata, {
+      const opts = {
         role: postmanRole,
         panelName: postmanPanel.trim() || data.metadata.machine_name,
         recordingId: postmanRecId.trim(),
-      })
+      }
+      const { blob, filename } = kind === 'json'
+        ? await downloadPostmanBundle(data.session_id, data.metadata, opts, { data_quality: data.data_quality, nominal_voltage: data.nominal_voltage })
+        : await downloadPostmanExcel(data.session_id, data.metadata, opts)
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -1002,6 +1005,8 @@ export function DashboardPage() {
             <p className="mt-1 text-xs text-[#10375c]/65">
               Tell PostMan where this recording was taken. The panel name and recording ID should match what
               was entered in the FOX KISEM app, so the report can join the measurement to the right panel.
+              The JSON bundle carries this analyser's compliance verdicts, health scores and events, computed here;
+              PostMan can also pull it straight from this server (session {data.session_id.slice(0, 8)}…) without a file.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
@@ -1038,9 +1043,12 @@ export function DashboardPage() {
             </div>
             {postmanError && <p className="mt-2 text-xs text-red-600">{postmanError}</p>}
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button type="button" variant="default" disabled={postmanBusy} onClick={exportForPostman}>
+              <Button type="button" variant="default" disabled={postmanBusy} onClick={() => exportForPostman('json')}>
                 <Download className="size-4" />
-                {postmanBusy ? 'Preparing workbook…' : 'Download PostMan workbook'}
+                {postmanBusy ? 'Preparing…' : 'Download PostMan bundle (JSON)'}
+              </Button>
+              <Button type="button" variant="secondary" disabled={postmanBusy} onClick={() => exportForPostman('excel')}>
+                <FileSpreadsheet className="size-4" /> Workbook (Excel)
               </Button>
               <Button type="button" variant="ghost" onClick={() => setPostmanOpen(false)}>
                 Cancel
