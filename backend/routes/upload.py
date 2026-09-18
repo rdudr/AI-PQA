@@ -6,8 +6,10 @@ from datetime import datetime
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from models.schema import AuditMetadata, ProcessResponse, TablePageResponse
+from reports.postman_export import build_postman_workbook
 from services import db
 from services.config_store import get_custom_columns, get_mappings
 from services.processing import _rows_from_df, _scale_power_columns, _apply_device_voltage_multiplier, process_bytes
@@ -638,6 +640,70 @@ def export_session_normalized_excel(session_id: str) -> StreamingResponse:
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
+
+
+# ── PostMan export (KISEM report generator) ───────────────────────────────────
+
+class PostmanExportRequest(BaseModel):
+    """What the report generator needs beside the data itself.
+
+    ``metadata`` is the audit metadata the dashboard already holds; when it is
+    left out the persisted session summary is used (needs DATABASE_URL)."""
+    metadata: AuditMetadata | None = None
+    role: str = "pcc"            # main | pcc | mcc — where the panel sits in the SLD
+    panel_name: str = ""         # defaults to metadata.machine_name
+    recording_id: str = ""       # the ID written on the FOX KISEM panel sheet
+
+
+def _postman_response(session_id: str, req: PostmanExportRequest) -> StreamingResponse:
+    df = session_store.get(session_id)
+    if df is None:
+        raise HTTPException(status_code=404, detail="Session expired or unknown.")
+    meta = req.metadata
+    source_file = ""
+    if meta is None:
+        payload = db.load_summary(session_id) if db.enabled() else None
+        if payload:
+            try:
+                meta = AuditMetadata.model_validate(payload.get("metadata") or {})
+                source_file = str(payload.get("filename") or "")
+            except Exception:  # noqa: BLE001
+                meta = None
+    try:
+        data, filename = build_postman_workbook(
+            df, meta,
+            role=req.role, panel_name=req.panel_name, recording_id=req.recording_id,
+            session_id=session_id, source_file=source_file,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/session/{session_id}/postman-excel")
+def export_session_for_postman(session_id: str, req: PostmanExportRequest) -> StreamingResponse:
+    """Workbook for the PostMan report generator (PostMan-PQ v1).
+
+    Sheets: PostMan (Field | Value), Summary, Harmonics, Data.
+    See docs/POSTMAN_EXPORT.md."""
+    return _postman_response(session_id, req)
+
+
+@router.get("/session/{session_id}/postman-excel")
+def export_session_for_postman_get(
+    session_id: str,
+    role: str = Query("pcc", description="main | pcc | mcc"),
+    panel_name: str = Query("", description="Panel / machine name as written in FOX KISEM"),
+    recording_id: str = Query("", description="Recording ID as written on the FOX KISEM panel sheet"),
+) -> StreamingResponse:
+    """Same as the POST form, with the metadata taken from the persisted
+    session summary — handy from a browser address bar or curl."""
+    return _postman_response(session_id, PostmanExportRequest(
+        role=role, panel_name=panel_name, recording_id=recording_id))
 
 
 # ── Central history (persisted sessions; empty when DATABASE_URL unset) ────────

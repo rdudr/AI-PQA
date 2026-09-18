@@ -88,6 +88,57 @@ export async function downloadNormalizedSessionExcel(sessionId: string): Promise
   return { blob: await r.blob(), filename }
 }
 
+/** Where the measured panel sits in the plant's single line diagram. PostMan
+ *  files the recording under the matching report section. */
+export type PostmanRole = 'main' | 'pcc' | 'mcc'
+
+export interface PostmanExportOptions {
+  role: PostmanRole
+  /** Panel / machine name exactly as written in the FOX KISEM app. */
+  panelName: string
+  /** Recording ID as written on the FOX KISEM panel sheet — PostMan joins on it. */
+  recordingId: string
+}
+
+/** Workbook for the PostMan report generator (PostMan-PQ v1): sheets PostMan,
+ *  Summary, Harmonics and Data. See docs/POSTMAN_EXPORT.md. */
+export async function downloadPostmanExcel(
+  sessionId: string,
+  metadata: AuditMetadata,
+  opts: PostmanExportOptions,
+): Promise<{ blob: Blob; filename: string }> {
+  const r = await fetch(
+    `${API_BASE}/api/upload/session/${encodeURIComponent(sessionId)}/postman-excel`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        metadata,
+        role: opts.role,
+        panel_name: opts.panelName,
+        recording_id: opts.recordingId,
+      }),
+    },
+  )
+  if (!r.ok) {
+    const errBody = await r.json().catch(() => null)
+    const detail =
+      errBody && typeof errBody === 'object' && 'detail' in errBody
+        ? String((errBody as { detail: unknown }).detail)
+        : r.statusText
+    throw new Error(detail || 'Could not build the PostMan workbook')
+  }
+
+  const contentDisposition = r.headers.get('content-disposition')
+  let filename = `PQ_${opts.recordingId || opts.panelName || sessionId.slice(0, 8)}_PostMan.xlsx`
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?([^"]+)"?/)
+    if (match) filename = match[1]
+  }
+
+  return { blob: await r.blob(), filename }
+}
+
 export async function processUpload(
   files: { file: File; model: string }[],
   metadata: AuditMetadata,
