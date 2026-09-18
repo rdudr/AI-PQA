@@ -3,7 +3,9 @@
 Pipeline (no scikit-learn required — pure numpy / pandas):
   1. Percentile-based unit/scale detection  – handles V, A, kW, PF, Hz, THD
   2. Physical-bound clamping                – remove instrument errors
-  3. Modified Z-score outlier detection     – Iglewicz & Hoaglin method
+  3. Modified Z-score outlier detection     – Iglewicz & Hoaglin method, but
+                                              ONLY isolated spikes are removed;
+                                              sustained runs are real PQ events
   4. Time-aware gap interpolation           – up to max_gap_fill consecutive NaNs
   5. Three-phase balance sanity             – flags wiring / CT-orientation issues
   6. Data quality scoring (0–100)           – per-column completeness + plausibility
@@ -118,10 +120,12 @@ class PQNormalizer:
         outlier_threshold: float = 3.5,   # |modified-Z| above this → outlier
         max_gap_fill: int = 6,             # max consecutive NaNs to interpolate
         max_outlier_frac: float = 0.05,    # skip removal if more than this fraction flagged
+        max_spike_run: int = 2,            # flagged runs longer than this are real events, kept
     ) -> None:
         self.outlier_threshold = outlier_threshold
         self.max_gap_fill = max_gap_fill
         self.max_outlier_frac = max_outlier_frac
+        self.max_spike_run = max_spike_run
 
     # ── Public entry point ─────────────────────────────────────────────────────
 
@@ -282,19 +286,35 @@ class PQNormalizer:
             if valid.sum() < 5:
                 continue
             z = _modified_z(s[valid])
-            outlier_idx = np.where(valid)[0][np.abs(z) > self.outlier_threshold]
+            valid_idx = np.where(valid)[0]
+            flagged_pos = np.where(np.abs(z) > self.outlier_threshold)[0]
+            if flagged_pos.size == 0:
+                continue
             # Instrument glitches are rare by nature. When a large share of the
             # samples gets flagged, the distribution is genuinely wide or bimodal
             # — e.g. solar sites log near-zero current all night and full load by
             # day, so the night cluster becomes the median and every real daytime
             # reading looks like an "outlier". Removing them would delete half
             # the measurement campaign, so keep the column untouched instead.
-            if outlier_idx.size > valid.sum() * self.max_outlier_frac:
+            if flagged_pos.size > valid.sum() * self.max_outlier_frac:
                 continue
-            if outlier_idx.size:
-                s[outlier_idx] = np.nan
-                df[col] = s
-                removed[col] = int(outlier_idx.size)
+            # A statistical outlier is only an instrument glitch if it is
+            # ISOLATED. A run of consecutive flagged samples that agree with each
+            # other is a real sustained event — a voltage swell, a motor start, a
+            # harmonic burst — and is exactly what a PQ analyser exists to record.
+            # (Seen in practice: a 5-minute 415 V → 466 V swell was deleted
+            # wholesale because every sample sat far from the recording's median.)
+            # So split the flagged samples into runs of consecutive valid readings
+            # and only remove runs short enough to be a blip.
+            breaks = np.where(np.diff(flagged_pos) > 1)[0] + 1
+            runs = np.split(flagged_pos, breaks)
+            spikes = [r for r in runs if r.size <= self.max_spike_run]
+            if not spikes:
+                continue
+            outlier_idx = valid_idx[np.concatenate(spikes)]
+            s[outlier_idx] = np.nan
+            df[col] = s
+            removed[col] = int(outlier_idx.size)
         return df, removed
 
     # ── Step 4: Gap filling ───────────────────────────────────────────────────
