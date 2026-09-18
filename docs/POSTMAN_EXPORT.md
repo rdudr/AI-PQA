@@ -111,3 +111,21 @@ If a column or field is renamed here, change PostMan's `src/p19_pq.js`
 value (`PostMan-PQ v2`). PostMan tolerates a few common instrument aliases
 (`U12`, `A1`, `P`, `S`, `Q`, `Hz` …) but the standard names above are the
 ones to rely on.
+
+## Keeping the two in step
+
+The full contract for all the field apps — what each feeds, the formulas
+that must stay identical, the checklist for a change — is
+[`docs/INTEGRATIONS.md` in PostMan](https://github.com/rdudr/PostMAN/blob/main/docs/INTEGRATIONS.md).
+The two rules from it:
+
+1. **A change here is a change there.** A field or column added, renamed or
+   re-unitised in `backend/reports/postman_export.py`, a change to the
+   IEEE-519 / EN 50160 limits or to how min / avg / max and the harmonic
+   spectrum are worked, is matched in PostMan (`src/p19_pq.js` — `PQ_COLS`,
+   `pqMeta`, `importPq`, `recSummaryBlocks`, `recCharts`) in the same
+   sitting, with the `Format` tag bumped when an old file would otherwise be
+   misread. Likewise, a wording, unit or verdict PostMan improves in the
+   report is carried back into this app's dashboard and audit PDF.
+2. **Push every repository touched** (`rdudr/AI-PQA` and `rdudr/PostMAN`)
+   before the work is called done, each commit naming the other.

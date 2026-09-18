@@ -82,3 +82,10 @@ By default, the application keeps analysis history in-memory (resets when the co
    DATABASE_URL=postgresql://user:password@your-db-host.supabase.co:5432/postgres
    ```
 3. The backend will automatically detect the database on startup, initialize the schemas, and begin saving all historical session data.
+
+## PostMan (KISEM report generator)
+
+This app's export feeds the KISEM **PostMan** report generator. Before
+changing an export column, a sheet or a formula, read `docs/POSTMAN_EXPORT.md` — and push every
+repository touched (this one and `rdudr/PostMAN`) before calling the work
+done.
