@@ -415,8 +415,18 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
         from parsers.base import robust_to_datetime
         combined["_dt"] = robust_to_datetime(combined["timestamp"])
         combined = combined.dropna(subset=["_dt"]).sort_values("_dt").reset_index(drop=True)
-        # Deduplicate overlapping timestamps
-        combined = combined.drop_duplicates(subset=["_dt"], keep="first")
+        # Drop re-imported rows — a row is a duplicate only when EVERY measured
+        # value matches, not merely the clock reading. Many loggers stamp at a
+        # coarser resolution than they sample (the KM 2400 writes minute stamps
+        # while sampling every 5 s, so ~12 distinct readings share one stamp);
+        # de-duplicating on the timestamp alone threw away 91% of such a file.
+        # Comparing whole rows still collapses a genuinely re-uploaded file or an
+        # overlapping period, which is what this step exists for.
+        dedup_cols = [c for c in combined.columns if c != "_dt"]
+        combined = combined.drop_duplicates(subset=dedup_cols or None, keep="first")
+        # Re-establish a contiguous index: the gap scan below steps from one row
+        # to the one before it, which is only valid on gap-free labels.
+        combined = combined.reset_index(drop=True)
         # Format timestamps consistently to ISO string format
         combined["timestamp"] = combined["_dt"].dt.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -427,17 +437,22 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
         
         # If the gap is larger than 10 mins or 5x the expected logging interval
         gap_threshold = max(pd.Timedelta(minutes=10), 5 * expected_interval)
-        gap_indices = time_diffs[time_diffs > gap_threshold].index
-        
+
+        # Step by POSITION, not by index label. "the row before this one" is
+        # label-1 only while the index is gap-free, so any future filter above
+        # would silently resurrect a KeyError here.
+        dt_vals = combined["_dt"]
+        ts_vals = combined["timestamp"]
+        gap_positions = np.flatnonzero((time_diffs > gap_threshold).to_numpy())
+
         gaps = []
-        for idx in gap_indices:
-            gap_start = combined.loc[idx - 1, "timestamp"]
-            gap_end = combined.loc[idx, "timestamp"]
-            dur = int((combined.loc[idx, "_dt"] - combined.loc[idx - 1, "_dt"]).total_seconds())
+        for pos in gap_positions:
+            if pos == 0:          # diff() of the first row is NaT; nothing precedes it
+                continue
             gaps.append({
-                "start": gap_start,
-                "end": gap_end,
-                "duration_seconds": dur
+                "start": ts_vals.iloc[pos - 1],
+                "end": ts_vals.iloc[pos],
+                "duration_seconds": int((dt_vals.iloc[pos] - dt_vals.iloc[pos - 1]).total_seconds()),
             })
             
         combined = combined.drop(columns=["_dt"], errors="ignore")
