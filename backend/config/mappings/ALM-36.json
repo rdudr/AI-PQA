@@ -348,5 +348,161 @@
     "standard_column": "A1_%FH25",
     "source_page": "A H Harmonic %"
   },
-  "F": "frequency"
+  "F": "frequency",
+  "V1-2 H1": {
+    "standard_column": "U12_%FH01",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H3": {
+    "standard_column": "U12_%FH03",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H5": {
+    "standard_column": "U12_%FH05",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H7": {
+    "standard_column": "U12_%FH07",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H9": {
+    "standard_column": "U12_%FH09",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H11": {
+    "standard_column": "U12_%FH11",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H13": {
+    "standard_column": "U12_%FH13",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H15": {
+    "standard_column": "U12_%FH15",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H17": {
+    "standard_column": "U12_%FH17",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H19": {
+    "standard_column": "U12_%FH19",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H21": {
+    "standard_column": "U12_%FH21",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H23": {
+    "standard_column": "U12_%FH23",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V1-2 H25": {
+    "standard_column": "U12_%FH25",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H1": {
+    "standard_column": "U23_%FH01",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H3": {
+    "standard_column": "U23_%FH03",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H5": {
+    "standard_column": "U23_%FH05",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H7": {
+    "standard_column": "U23_%FH07",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H9": {
+    "standard_column": "U23_%FH09",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H11": {
+    "standard_column": "U23_%FH11",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H13": {
+    "standard_column": "U23_%FH13",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H15": {
+    "standard_column": "U23_%FH15",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H17": {
+    "standard_column": "U23_%FH17",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H19": {
+    "standard_column": "U23_%FH19",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H21": {
+    "standard_column": "U23_%FH21",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H23": {
+    "standard_column": "U23_%FH23",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V2-3 H25": {
+    "standard_column": "U23_%FH25",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H1": {
+    "standard_column": "U31_%FH01",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H3": {
+    "standard_column": "U31_%FH03",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H5": {
+    "standard_column": "U31_%FH05",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H7": {
+    "standard_column": "U31_%FH07",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H9": {
+    "standard_column": "U31_%FH09",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H11": {
+    "standard_column": "U31_%FH11",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H13": {
+    "standard_column": "U31_%FH13",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H15": {
+    "standard_column": "U31_%FH15",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H17": {
+    "standard_column": "U31_%FH17",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H19": {
+    "standard_column": "U31_%FH19",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H21": {
+    "standard_column": "U31_%FH21",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H23": {
+    "standard_column": "U31_%FH23",
+    "source_page": "Vφ φ H Harmonic %"
+  },
+  "V3-1 H25": {
+    "standard_column": "U31_%FH25",
+    "source_page": "Vφ φ H Harmonic %"
+  }
 }
