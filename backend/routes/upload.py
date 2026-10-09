@@ -187,6 +187,7 @@ def _apply_mappings_to_dataframe(
     mappings: dict[str, str],
     source_pages: dict[str, str] | None = None,
     custom_cols: list[dict] | None = None,
+    model_name: str | None = None,
 ) -> pd.DataFrame:
     """
     Apply saved mappings to extract only mapped columns from the data.
@@ -201,6 +202,10 @@ def _apply_mappings_to_dataframe(
                      [{"name": raw_col, "sheet": sheet_name, "mapTo": standard_col}, ...]
                      Used when the SAME raw column name appears on multiple sheets
                      with different meanings — each one maps to a DIFFERENT standard column.
+        model_name: Optional device model. When given, any standard column the
+                    saved mapping did not fill is a last resort looked up in that
+                    parser's synonym table, so a renamed vendor header does not
+                    leave the column silently empty. Explicit mappings always win.
 
     Returns:
         DataFrame with only mapped columns, renamed to standard names
@@ -373,6 +378,59 @@ def _apply_mappings_to_dataframe(
         # Check if this custom column also came from a kA source
         if map_to in _KA_CURRENT_STANDARDS and "ka" in raw_name.lower().replace("(", "").replace(")", ""):
             _ka_cols.add(map_to)
+
+    # ── Fall back to the device parser's synonyms for anything still unmapped ──
+    # A saved mapping only knows the header spellings that existed when it was
+    # saved. When a vendor renames one — Chauvin Arnoux writes line-to-line
+    # voltage as either "U12 RMS" or "V1-2 RMS" depending on a display setting —
+    # that standard column silently stayed EMPTY, because a mapping that filled
+    # at least one column stopped the built-in parser from ever running. The
+    # dashboard then drew an empty voltage profile from a file that clearly had
+    # voltage in it. Only columns the mapping did not fill are touched, so an
+    # explicit user mapping always wins.
+    if model_name:
+        from parsers.base import STANDARD_COLUMNS, slug_column
+        from parsers.registry import get_parser
+
+        unfilled = {c for c in STANDARD_COLUMNS if c not in result_series and c != "timestamp"}
+        # Never resurrect a raw column the operator explicitly mapped to "NA".
+        # e.g. ALM-20 configs mark "V1-N (1 min)" NA because it is the ~240 V
+        # phase voltage; the synonym table would happily accept it as
+        # voltage_phase_a and quietly halve the whole voltage profile.
+        suppressed: set[str] = set()
+        for _raw_name, _val in mappings.items():
+            _std = _val.get("standard_column") if isinstance(_val, dict) else str(_val)
+            if not _std or _std == "NA":
+                suppressed.add(_normalize_name(_raw_name))
+                fz = _fuzzy_normalize_name(_raw_name)
+                if fz:
+                    suppressed.add(fz)
+        if unfilled:
+            try:
+                parser = get_parser(model_name)
+            except Exception:  # noqa: BLE001 — unknown model: nothing to fall back to
+                parser = None
+            if parser is not None:
+                for page in pages:
+                    df = page["df"]
+                    # Same preference as the built-in parser: line-to-line before
+                    # line-to-neutral, and RMS/AVG columns before raw ones, so a
+                    # 415 V line reading is never displaced by a 240 V phase one.
+                    candidates = sorted(
+                        (str(c) for c in df.columns),
+                        key=lambda c: (
+                            not any(t in slug_column(c) for t in ("u12", "u23", "u31",
+                                                                  "v1_2", "v2_3", "v3_1")),
+                            "rms" not in slug_column(c),
+                            "avg" not in slug_column(c),
+                        ),
+                    )
+                    for col in candidates:
+                        if _normalize_name(col) in suppressed or _fuzzy_normalize_name(col) in suppressed:
+                            continue
+                        canonical = parser._resolve_slug(slug_column(col))
+                        if canonical in unfilled and canonical not in result_series:
+                            result_series[canonical] = _as_series(df, col)
 
     if not result_series:
         raise ValueError("No mapped columns found in data")
@@ -886,6 +944,7 @@ async def download_normalized_excel(
             mappings,
             source_pages=None,
             custom_cols=custom_cols,
+            model_name=model_name,
         )
         raw_cols = []
         for page in pages:

@@ -259,6 +259,7 @@ def process_bytes(filename: str, raw: bytes, metadata: AuditMetadata) -> Process
                     user_mappings,
                     source_pages=None,
                     custom_cols=user_custom_cols,
+                    model_name=metadata.pq_analyzer_type,
                 )
             # Free the per-sheet dataframes — on a 100MB file these can hold
             # hundreds of MB that we no longer need after `_apply_mappings_to_dataframe`.
@@ -365,6 +366,7 @@ def process_multiple_files(files_data: list[dict], metadata: AuditMetadata) -> P
                         user_mappings,
                         source_pages=None,
                         custom_cols=user_custom_cols,
+                        model_name=model_name,
                     )
                 del pages
                 gc.collect()

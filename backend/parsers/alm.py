@@ -28,6 +28,13 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "u_phase_a", "van", "vln_a", "v_ln_a",
         # Solar/LV
         "u1_avg", "u1_rms_avg", "v_a_avg",
+        # Chauvin Arnoux 8336/8331 exports can label LINE-TO-LINE voltage either
+        # "U12 RMS" or "V1-2 RMS" depending on the display convention chosen in
+        # the PC software. Only the U-form was listed, so a V-form export left
+        # the voltage profile completely blank. The line-to-NEUTRAL columns
+        # ("V1-N RMS") are deliberately NOT listed — mapping those here would
+        # silently plot ~240 V phase voltage as if it were the 415 V line value.
+        "v1_2", "v1_2_rms", "v12", "v12_rms",
     ),
     "voltage_phase_b": (
         "u2", "u_2", "ul2", "u_l2", "u_l2_rms", "ul2_rms",
@@ -37,6 +44,7 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "phase_b_v", "phase_2_v", "phb_v",
         "u_phase_b", "vbn", "vln_b", "v_ln_b",
         "u2_avg", "u2_rms_avg", "v_b_avg",
+        "v2_3", "v2_3_rms", "v23", "v23_rms",
     ),
     "voltage_phase_c": (
         "u3", "u_3", "ul3", "u_l3", "u_l3_rms", "ul3_rms",
@@ -46,6 +54,7 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "phase_c_v", "phase_3_v", "phc_v",
         "u_phase_c", "vcn", "vln_c", "v_ln_c",
         "u3_avg", "u3_rms_avg", "v_c_avg",
+        "v3_1", "v3_1_rms", "v31", "v31_rms",
     ),
     "current_phase_a": (
         "i1", "i_1", "il1", "i_l1", "i_l1_rms", "il1_rms",
@@ -146,6 +155,9 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "voltage_thd_l1", "voltage_thd_1",
         # letter-phase style
         "vthd_a", "v_thd_a", "thd_va", "thd_volt_a",
+        # Chauvin Arnoux "THDf" on the line-to-line pair (see voltage_phase_a).
+        # Phase-to-neutral ("V1-N THDf") is intentionally excluded.
+        "v1_2_thdf", "v12_thdf", "u12_thdf", "v1_2_thd", "v12_thd", "u12_thd",
     ),
     "vthd_b": (
         "vthd_2", "vthd2", "vthd_l2",
@@ -156,6 +168,7 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "v2_thd", "v_thd_2", "v_thd_l2",
         "voltage_thd_l2", "voltage_thd_2",
         "vthd_b", "v_thd_b", "thd_vb", "thd_volt_b",
+        "v2_3_thdf", "v23_thdf", "u23_thdf", "v2_3_thd", "v23_thd", "u23_thd",
     ),
     "vthd_c": (
         "vthd_3", "vthd3", "vthd_l3",
@@ -166,6 +179,7 @@ ALM_SYNONYMS: dict[str, tuple[str, ...]] = {
         "v3_thd", "v_thd_3", "v_thd_l3",
         "voltage_thd_l3", "voltage_thd_3",
         "vthd_c", "v_thd_c", "thd_vc", "thd_volt_c",
+        "v3_1_thdf", "v31_thdf", "u31_thdf", "v3_1_thd", "v31_thd", "u31_thd",
     ),
     "ithd_a": (
         # numbered variants
