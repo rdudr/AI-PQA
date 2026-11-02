@@ -28,9 +28,9 @@ import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
 import type { AnalyticsPayload, MetricBlock, ProcessResponse } from '@/types/pq'
-import { downloadNormalizedSessionExcel, downloadPostmanBundle } from '@/services/api'
+import { downloadNormalizedSessionExcel, downloadPostmanBundle, listFoxAudits } from '@/services/api'
 import { sendToPostman } from '@/utils/postmanSend'
-import type { PostmanRole } from '@/services/api'
+import type { FoxAudit, PostmanRole } from '@/services/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { exportPqReportPdf } from '@/utils/pqReportPdf'
@@ -285,6 +285,10 @@ export function DashboardPage() {
   const [postmanRole, setPostmanRole] = useState<PostmanRole>('pcc')
   const [postmanPanel, setPostmanPanel] = useState('')
   const [postmanRecId, setPostmanRecId] = useState('')
+  // The FOX Console audit to keep the recording with: the one the analyser was opened for, if any.
+  const [postmanAudit, setPostmanAudit] = useState<string>(() => { try { return sessionStorage.getItem('fox-audit') || '' } catch { return '' } })
+  const [foxAudits, setFoxAudits] = useState<FoxAudit[]>([])
+  useEffect(() => { if (postmanOpen && !foxAudits.length) listFoxAudits().then(setFoxAudits) }, [postmanOpen, foxAudits.length])
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false)
   const [data, setData] = useState<ProcessResponse | null>(null)
   const [dbLoading, setDbLoading] = useState(true)
@@ -776,6 +780,7 @@ export function DashboardPage() {
     role: postmanRole,
     panelName: postmanPanel.trim() || data.metadata.machine_name,
     recordingId: postmanRecId.trim(),
+    auditId: postmanAudit,
   })
 
   // The link to PostMan: park this recording's findings and charts on the
@@ -789,7 +794,11 @@ export function DashboardPage() {
         ? Array.from(reportRef.current.querySelectorAll<HTMLElement>('[data-report-chart]'))
         : []
       const res = await sendToPostman(data, data.metadata, postmanOpts(), chartElements)
-      setPostmanDone(`Sent to PostMan as ${res.panel} with ${res.charts} charts. Pull it from PostMan's Electrical distribution page within ${res.expires_hours} h.`)
+      const kept = res.console?.saved
+        ? ' Saved with the audit in FOX Console: PostMan picks it up by itself and keeps it.'
+        : postmanAudit ? ` Not saved to FOX Console (${res.console?.error || 'unknown reason'}): pull it from PostMan's Electrical distribution page within ${res.expires_hours} h.`
+          : ` Pull it from PostMan's Electrical distribution page within ${res.expires_hours} h, or choose the audit to keep it in FOX Console.`
+      setPostmanDone(`Sent to PostMan as ${res.panel} with ${res.charts} charts.${kept}`)
     } catch (err) {
       setPostmanError(err instanceof Error ? err.message : 'Send failed')
     } finally {
@@ -1028,6 +1037,23 @@ export function DashboardPage() {
               figures from the Cost page and these very charts go to the server, where PostMan picks them up
               (Electrical distribution, List recordings). The server keeps them for 24 hours.
             </p>
+            {foxAudits.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <Label htmlFor="postman-audit">Audit (FOX Console)</Label>
+                <select
+                  id="postman-audit"
+                  value={postmanAudit}
+                  onChange={(e) => setPostmanAudit(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-[#10375c]/12 bg-white/70 px-3 py-2 text-sm text-[#10375c] shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-[#f3c623]/60"
+                >
+                  <option value="">Do not keep it in FOX Console (24-hour queue only)</option>
+                  {foxAudits.map((a) => (
+                    <option key={a.id} value={a.id}>{[a.client_name || a.title, a.site_name, a.industry_tag, a.id].filter(Boolean).join(' · ')}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#10375c]/60">Kept with the audit: PostMan reads it with the rest of the audit's data and joins it to the panel in the single line diagram by the recording ID.</p>
+              </div>
+            )}
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="space-y-1">
                 <Label htmlFor="postman-role">Measured at</Label>

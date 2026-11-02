@@ -10,6 +10,7 @@ import type {
 import type { HistoryItem } from '@/utils/sessionDb'
 
 import { API_BASE } from './apiBase'
+import { authToken } from '@/auth/AuthContext'
 
 /** The server no longer holds this session's data (e.g. it restarted and no
  *  DATABASE_URL is configured). Callers can fall back to locally cached data. */
@@ -98,6 +99,20 @@ export interface PostmanExportOptions {
   panelName: string
   /** Recording ID as written on the FOX KISEM panel sheet — PostMan joins on it. */
   recordingId: string
+  /** The FOX Console audit to keep the recording with (KISEM server). */
+  auditId?: string
+}
+
+export interface FoxAudit { id: string; title?: string; client_name?: string; site_name?: string; industry_tag?: string; fy?: string }
+
+/** The audits the signed-in engineer may save a recording to (empty off the KISEM server). */
+export async function listFoxAudits(): Promise<FoxAudit[]> {
+  try {
+    const r = await fetch(`${API_BASE}/api/upload/fox/audits`)
+    return r.ok ? ((await r.json()) as FoxAudit[]) : []
+  } catch {
+    return []
+  }
 }
 
 /** Workbook for the PostMan report generator (PostMan-PQ v1): sheets PostMan,
@@ -186,6 +201,8 @@ export async function processUpload(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${API_BASE}/api/upload/process`)
+    const token = authToken()   // the FOX Console pass (fetch calls get it in AuthContext)
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
     xhr.responseType = 'json'
     xhr.timeout = 600_000 // 10 minutes for large multi-file uploads
 

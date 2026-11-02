@@ -47,7 +47,7 @@ export async function sendToPostman(
   metadata: AuditMetadata,
   opts: PostmanExportOptions,
   chartElements: HTMLElement[],
-): Promise<{ ok: boolean; panel: string; charts: number; expires_hours: number }> {
+): Promise<{ ok: boolean; panel: string; charts: number; expires_hours: number; console?: { saved: boolean; record_id?: string; error?: string } }> {
   const rules = evaluateCompliance(data)
   const health = computeHealth(data)
   const overall = overallHealthScore(health)
@@ -58,6 +58,7 @@ export async function sendToPostman(
     role: opts.role,
     panel_name: opts.panelName,
     recording_id: opts.recordingId,
+    audit_id: opts.auditId || '',
     data_quality: data.data_quality,
     nominal_voltage: data.nominal_voltage,
     compliance: { rules, summary: complianceSummary(rules) },

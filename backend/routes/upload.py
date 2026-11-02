@@ -4,7 +4,7 @@ import io
 from datetime import datetime
 
 import pandas as pd
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -13,6 +13,7 @@ from reports.postman_bundle import build_postman_bundle
 from reports.postman_export import build_postman_workbook
 from services import db
 from services import postman_queue
+from services import fox_console_save
 from services.config_store import get_custom_columns, get_mappings
 from services.processing import _rows_from_df, _scale_power_columns, _apply_device_voltage_multiplier, process_bytes
 from services.session_store import session_store
@@ -818,10 +819,22 @@ class PostmanSendRequest(PostmanExportRequest):
     health: dict | None = None          # {components, overall, status} from utils/equipmentHealth.ts
     cost: dict | None = None            # {inputs, result} from utils/costOfPoorQuality.ts
     charts: list[dict] | None = None    # [{title, image (data URL)}] captured from the dashboard
+    audit_id: str = ""                  # the FOX Console audit to keep it with (KISEM server)
+
+
+def _bearer(request: Request) -> str:
+    h = request.headers.get("authorization", "")
+    return h[7:].strip() if h.lower().startswith("bearer ") else ""
+
+
+@router.get("/fox/audits")
+def fox_audits(request: Request) -> list[dict]:
+    """The audits the signed-in engineer may save a recording to (FOX Console)."""
+    return fox_console_save.my_audits(_bearer(request))
 
 
 @router.post("/session/{session_id}/postman-send")
-def send_to_postman(session_id: str, req: PostmanSendRequest) -> dict:
+def send_to_postman(session_id: str, req: PostmanSendRequest, request: Request) -> dict:
     """Queue this recording for PostMan under the chosen panel. The link
     between the two tools: PostMan lists the queue and pulls from it."""
     bundle = _postman_bundle(session_id, req)
@@ -838,9 +851,11 @@ def send_to_postman(session_id: str, req: PostmanSendRequest) -> dict:
                             for c in req.charts if c.get("image")]
     bundle["sent_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     postman_queue.put(session_id, bundle)
+    # Kept with the audit in FOX Console too, so PostMan has it for good, not only for 24 hours.
+    console = fox_console_save.save_recording(_bearer(request), req.audit_id.strip(), bundle) if req.audit_id else {"saved": False}
     return {"ok": True, "session_id": session_id, "panel": bundle["panel"], "role": bundle["role"],
             "recording_id": bundle["recording_id"], "charts": len(bundle.get("charts") or []),
-            "expires_hours": db.RETENTION_HOURS}
+            "expires_hours": db.RETENTION_HOURS, "console": console}
 
 
 @router.delete("/session/{session_id}/postman-send")
