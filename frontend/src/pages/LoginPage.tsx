@@ -8,7 +8,7 @@ import { useAuth } from '@/auth/AuthContext'
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation() as { state?: { from?: string } }
-  const { login, user } = useAuth()
+  const { login, loginWithLaunch, user } = useAuth()
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -23,15 +23,35 @@ export function LoginPage() {
     }
   }, [user, navigate, location])
 
-  const onSubmit = (e: FormEvent) => {
+  // Opened from FOX Console (?launch=<one-time code>[&audit=<id>]): signed in straight away, no form.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    const code = q.get('launch')
+    if (!code) return
+    const audit = q.get('audit')
+    try {
+      if (audit) sessionStorage.setItem('fox-audit', audit)
+      else sessionStorage.removeItem('fox-audit')
+    } catch { /* the audit is simply asked for again */ }
+    window.history.replaceState(null, '', window.location.pathname) // the code never stays in the address bar
+    setBusy(true)
+    loginWithLaunch(code).then(r => {
+      setBusy(false)
+      if (!r.ok) setError(r.reason)
+      // on success the effect above takes the person to the dashboard
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     if (!username.trim() || !password) {
-      setError('Username and password are required.')
+      setError('Login ID and password are required.')
       return
     }
     setBusy(true)
-    const result = login(username, password)
+    const result = await login(username, password)   // FOX Console login
     setBusy(false)
     if (!result.ok) {
       setError(result.reason)
@@ -98,7 +118,7 @@ export function LoginPage() {
                 {/* Username */}
                 <div>
                   <label htmlFor="username" className="text-xs font-medium text-[#10375c]/75">
-                    Username
+                    FOX Console Login ID
                   </label>
                   <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#10375c]/12 bg-white/85 px-3 py-2 shadow-sm focus-within:ring-2 focus-within:ring-blue-300/50">
                     <UserIcon className="size-4 text-[#10375c]/45" />

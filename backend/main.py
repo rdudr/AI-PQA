@@ -8,6 +8,7 @@ import pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 from backend.routes import analytics, config, health, upload
+from backend.fox_console_auth import require_fox_console
 from backend.services.config_store import _ensure_dirs as _init_config_dirs
 from backend.utils.excel_open import available_engines, warn_if_engines_missing
 
@@ -24,6 +25,10 @@ print(
 )
 
 app = FastAPI(title="AI Power Quality Analyzer API", version="0.1.0")
+
+# On the KISEM server every API call needs a FOX Console sign-in (see fox_console_auth.py).
+# Added before CORS so CORS stays the outer layer and refusals still carry CORS headers.
+app.middleware("http")(require_fox_console)
 
 app.add_middleware(
     CORSMiddleware,
