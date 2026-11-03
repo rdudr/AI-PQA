@@ -13,6 +13,7 @@ import json
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from backend.fox_console_auth import FOX_CONSOLE_URL
@@ -45,6 +46,16 @@ def my_audits(token: str) -> list[dict]:
         return []
     return [{"id": a.get("id"), "title": a.get("title"), "client_name": a.get("client_name"), "site_name": a.get("site_name"),
              "industry_tag": a.get("industry_tag"), "fy": a.get("fy")} for a in data.get("audits", []) if a.get("id")]
+
+
+def audit_profile(token: str, audit_id: str) -> dict:
+    """The company of one audit as registered in FOX Console, and the signed-in engineer's name,
+    so the upload form fills itself when the analyser is opened for that company."""
+    if not FOX_CONSOLE_URL or not token or not audit_id:
+        return {"profile": None, "engineer": ""}
+    status, data = _call("GET", f"/api/device/audit-profile?audit_id={urllib.parse.quote(audit_id)}", token)
+    _, me = _call("GET", "/api/device/me", token)
+    return {"profile": data.get("profile") if status == 200 else None, "engineer": (me.get("user") or {}).get("name", "")}
 
 
 def _thin(bundle: dict) -> dict:

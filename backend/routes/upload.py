@@ -833,6 +833,12 @@ def fox_audits(request: Request) -> list[dict]:
     return fox_console_save.my_audits(_bearer(request))
 
 
+@router.get("/fox/audit-profile")
+def fox_audit_profile(request: Request, audit_id: str = Query(..., max_length=40)) -> dict:
+    """One audit's company (name, plant, district, state, pincode) and the engineer's name."""
+    return fox_console_save.audit_profile(_bearer(request), audit_id.strip())
+
+
 @router.post("/session/{session_id}/postman-send")
 def send_to_postman(session_id: str, req: PostmanSendRequest, request: Request) -> dict:
     """Queue this recording for PostMan under the chosen panel. The link

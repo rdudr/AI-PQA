@@ -105,6 +105,18 @@ export interface PostmanExportOptions {
 
 export interface FoxAudit { id: string; title?: string; client_name?: string; site_name?: string; industry_tag?: string; fy?: string }
 
+export interface FoxProfile { audit_id: string; company_name: string; plant_name: string; district: string; state: string; pincode: string; industry_tag?: string; fy?: string }
+
+/** One audit's company as registered in FOX Console, and the signed-in engineer (null off the KISEM server). */
+export async function foxAuditProfile(auditId: string): Promise<{ profile: FoxProfile | null; engineer: string } | null> {
+  try {
+    const r = await fetch(`${API_BASE}/api/upload/fox/audit-profile?audit_id=${encodeURIComponent(auditId)}`)
+    return r.ok ? ((await r.json()) as { profile: FoxProfile | null; engineer: string }) : null
+  } catch {
+    return null
+  }
+}
+
 /** The audits the signed-in engineer may save a recording to (empty off the KISEM server). */
 export async function listFoxAudits(): Promise<FoxAudit[]> {
   try {

@@ -6,7 +6,7 @@ import { Trash2 } from 'lucide-react'
 import { saveSession } from '@/utils/sessionDb'
 import type { AuditMetadata } from '@/types/pq'
 import type { PQModel } from '@/types/config'
-import { processUpload } from '@/services/api'
+import { processUpload, listFoxAudits, foxAuditProfile, type FoxAudit } from '@/services/api'
 import { fetchModels } from '@/services/configApi'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { Button } from '@/components/ui/button'
@@ -65,6 +65,40 @@ export function UploadPage() {
     engineer_name: '',
     audit_date: todayIsoDate(),
   })
+
+  // Linked to a company in FOX Console: opened from the company (it remembered the audit at sign-in),
+  // or chosen here. The form fills from the Console, and the recording is kept with that audit.
+  const [foxAudits, setFoxAudits] = useState<FoxAudit[]>([])
+  const [linked, setLinked] = useState<string>(() => { try { return sessionStorage.getItem('fox-audit') || '' } catch { return '' } })
+  const [linkNote, setLinkNote] = useState<string>('')
+  useEffect(() => { listFoxAudits().then(setFoxAudits) }, [])
+  const applyProfile = useCallback((r: Awaited<ReturnType<typeof foxAuditProfile>>, overwrite: boolean) => {
+    if (!r || !r.profile) { setLinkNote('Could not read this company from FOX Console; fill the fields by hand.'); return }
+    const p = r.profile
+    const address = [p.district, p.state, p.pincode].filter(Boolean).join(', ')
+    setMeta((m) => ({
+      ...m,
+      company_name: overwrite || !m.company_name.trim() ? p.company_name : m.company_name,
+      plant_name: overwrite || !m.plant_name.trim() ? p.plant_name : m.plant_name,
+      address: overwrite || !m.address.trim() ? address : m.address,
+      engineer_name: m.engineer_name.trim() ? m.engineer_name : r.engineer,
+    }))
+    setLinkNote(`Filled from FOX Console: ${p.company_name}, ${p.plant_name}${p.industry_tag ? ` (${p.industry_tag})` : ''}.`)
+  }, [])
+  // Opened from the company in FOX Console: fill once from it (fields already typed are kept).
+  useEffect(() => {
+    if (!linked) return
+    let gone = false
+    foxAuditProfile(linked).then((r) => { if (!gone) applyProfile(r, false) })
+    return () => { gone = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const chooseLinked = (id: string) => {
+    setLinked(id)
+    setLinkNote('')
+    try { if (id) sessionStorage.setItem('fox-audit', id); else sessionStorage.removeItem('fox-audit') } catch { /* private window */ }
+    if (id) foxAuditProfile(id).then((r) => applyProfile(r, true))
+  }
 
   const loadModelsList = useCallback(() => {
     setLoadingModels(true)
@@ -255,6 +289,29 @@ export function UploadPage() {
             <CardDescription>Captured on PDF exports and API payloads.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+
+            {/* ── The company in FOX Console this recording belongs to ─── */}
+            {foxAudits.length > 0 && (
+              <div className="space-y-2 rounded-xl border border-[#10375c]/15 bg-[#f4f6ff]/60 p-3">
+                <Label htmlFor="fox-audit">Company (FOX Console)</Label>
+                <select
+                  id="fox-audit"
+                  value={linked}
+                  onChange={(e) => chooseLinked(e.target.value)}
+                  className="flex h-10 w-full rounded-xl border border-[#10375c]/12 bg-white/80 px-3 py-2 text-sm text-[#10375c] shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-[#f3c623]/60"
+                >
+                  <option value="">Not linked to a company</option>
+                  {foxAudits.map((a) => (
+                    <option key={a.id} value={a.id}>{[a.client_name || a.title, a.site_name, a.industry_tag, a.id].filter(Boolean).join(' · ')}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#10375c]/70">
+                  {linked
+                    ? (linkNote || 'Reading the company from FOX Console…') + ' The recording is kept with this audit when you send it to PostMan.'
+                    : 'Choose the company to fill the details below and keep the recording with its audit.'}
+                </p>
+              </div>
+            )}
 
             {/* ── Files count in queue ─────────────────────────────── */}
             <div className="space-y-2">
