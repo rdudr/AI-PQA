@@ -1,0 +1,15 @@
+{
+  "targets": [
+    { "app": "MLA", "dir": "../process/MLA - KISEM/lib", "reader": false, "uses": "long-term motor monitoring (lib/pq-import.ts)" },
+    { "app": "A-CMP", "dir": "../A-CMP/lib", "reader": true, "uses": "Excel based load / unload of compressors (lib/load-unload.ts)" }
+  ],
+  "models": {
+    "ALM-20": { "label": "ALM-20 (PQ analyser)" },
+    "ALM-31": { "label": "ALM-31 (PQ analyser)" },
+    "ALM-36": { "label": "ALM-36 (PQ analyser)" },
+    "ALM-45": { "label": "ALM-45 (PQ analyser)" },
+    "PQ-1938": { "label": "PQ-1938 (PQ analyser)" },
+    "KM_2400": { "id": "KM 2400", "slug": "km2400", "label": "KM 2400 (logger)" },
+    "Rishabh_Clampmeter": { "id": "Rishabh Clampmeter", "slug": "clamp", "kind": "Clamp", "label": "Rishabh Clamp-meter" }
+  }
+}
