@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { ok: false as const, reason: data.error || 'Sign-in failed.' }
     }
     if (data.must_change_pw) {
-      return { ok: false as const, reason: 'Please sign in once at console.eassiitgn.page to set your own password, then use it here.' }
+      return { ok: false as const, reason: `Please sign in once at ${FOX_CONSOLE.replace(/^https?:\/\//, '')} to set your own password, then use it here.` }
     }
     // The Console's Super Admin is this app's admin; everyone else is a user.
     const me = await fetch(`${FOX_CONSOLE}/api/device/me`, { headers: { Authorization: `Bearer ${data.token}` } })
