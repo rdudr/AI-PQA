@@ -35,9 +35,9 @@ const BASE_SYNONYMS: Record<Core, string[]> = {
   timestamp: ["timestamp", "datetime", "date_time"],
   date: ["date", "day", "date_only", "recorddate", "date_"],
   time: ["time", "time_only", "recordtime", "hms", "time_"],
-  voltage_phase_a: ["voltage_phase_a", "va", "v_a", "phase_a_voltage", "u_a", "van", "urms_a", "v_rms_a", "rms_voltage_a", "v1_n_1_min", "u12_rms", "v1_n", "u12", "v1rms", "u12rms", "v1", "u1", "urms_l1", "v_l1", "vrms_l1"],
-  voltage_phase_b: ["voltage_phase_b", "vb", "v_b", "phase_b_voltage", "u_b", "vbn", "urms_b", "v_rms_b", "rms_voltage_b", "v2_n_1_min", "u23_rms", "v2_n", "u23", "v2rms", "u23rms", "v2", "u2", "urms_l2", "v_l2", "vrms_l2"],
-  voltage_phase_c: ["voltage_phase_c", "vc", "v_c", "phase_c_voltage", "u_c", "vcn", "urms_c", "v_rms_c", "rms_voltage_c", "v3_n_1_min", "u31_rms", "v3_n", "u31", "v3rms", "u31rms", "v3", "u3", "urms_l3", "v_l3", "vrms_l3"],
+  voltage_phase_a: ["voltage_phase_a", "va", "v_a", "phase_a_voltage", "u_a", "van", "urms_a", "v_rms_a", "rms_voltage_a", "v1_n_1_min", "u12_rms", "v1_2_rms", "v1_2", "v1_n", "u12", "v1rms", "u12rms", "v1", "u1", "urms_l1", "v_l1", "vrms_l1"],
+  voltage_phase_b: ["voltage_phase_b", "vb", "v_b", "phase_b_voltage", "u_b", "vbn", "urms_b", "v_rms_b", "rms_voltage_b", "v2_n_1_min", "u23_rms", "v2_3_rms", "v2_3", "v2_n", "u23", "v2rms", "u23rms", "v2", "u2", "urms_l2", "v_l2", "vrms_l2"],
+  voltage_phase_c: ["voltage_phase_c", "vc", "v_c", "phase_c_voltage", "u_c", "vcn", "urms_c", "v_rms_c", "rms_voltage_c", "v3_n_1_min", "u31_rms", "v3_1_rms", "v3_1", "v3_n", "u31", "v3rms", "u31rms", "v3", "u3", "urms_l3", "v_l3", "vrms_l3"],
   current_phase_a: ["current_phase_a", "ia", "i_a", "phase_a_current", "irms_a", "i_rms_a", "rms_current_a", "a1_rms", "a1", "i1_rms", "i1", "i1_1_min", "a1rms", "irms_l1", "i_l1"],
   current_phase_b: ["current_phase_b", "ib", "i_b", "phase_b_current", "irms_b", "i_rms_b", "rms_current_b", "a2_rms", "a2", "i2_rms", "i2", "i2_1_min", "a2rms", "irms_l2", "i_l2"],
   current_phase_c: ["current_phase_c", "ic", "i_c", "phase_c_current", "irms_c", "i_rms_c", "rms_current_c", "a3_rms", "a3", "i3_rms", "i3", "i3_1_min", "a3rms", "irms_l3", "i_l3"],
@@ -77,22 +77,41 @@ function mappingLookup(mapping: PqMapping | null): Map<string, Core | null> {
     const std = typeof v === "string" ? v : v?.standard_column;
     const slug = slugColumn(raw);
     const core = std && (CORE as readonly string[]).includes(std) ? (std as Core) : null;
-    if (!m.has(slug) || (m.get(slug) === null && core)) m.set(slug, core);
+    for (const key of [slug, stripInterval(slug)]) {
+      if (!key) continue;
+      if (!m.has(key) || (m.get(key) === null && core)) m.set(key, core);
+    }
   }
   return m;
+}
+
+// The recording interval loggers append to every header: "PT (1 s)", "I1 (1 min)", "U12 (10 min)".
+// Stripped, so one model file covers every interval the instrument was set to.
+const INTERVAL_TAG = /_\d+_?(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours)$/;
+export const stripInterval = (slug: string) => slug.replace(INTERVAL_TAG, "");
+
+function resolveSlug(slug: string, modelMap: Map<string, Core | null>): Core | null | undefined {
+  if (modelMap.has(slug)) return modelMap.get(slug)!;
+  if (SYN_LOOKUP.has(slug)) return SYN_LOOKUP.get(slug)!;
+  for (const suf of UNIT_SUFFIXES) {
+    if (slug.endsWith(suf) && slug.length > suf.length) {
+      const base = slug.slice(0, -suf.length);
+      if (modelMap.has(base)) return modelMap.get(base)!;
+      if (SYN_LOOKUP.has(base)) return SYN_LOOKUP.get(base)!;
+    }
+  }
+  return undefined;
 }
 
 function resolveHeader(header: string, modelMap: Map<string, Core | null>): Core | null {
   const slug = slugColumn(header);
   if (!slug) return null;
-  if (modelMap.has(slug)) return modelMap.get(slug)!;
-  if (SYN_LOOKUP.has(slug)) return SYN_LOOKUP.get(slug)!;
-  for (const suf of UNIT_SUFFIXES) {
-    if (slug.endsWith(suf)) {
-      const base = slug.slice(0, -suf.length);
-      if (modelMap.has(base)) return modelMap.get(base)!;
-      if (SYN_LOOKUP.has(base)) return SYN_LOOKUP.get(base)!;
-    }
+  const exact = resolveSlug(slug, modelMap);
+  if (exact !== undefined) return exact;
+  const bare = stripInterval(slug);
+  if (bare && bare !== slug) {
+    const r = resolveSlug(bare, modelMap);
+    if (r !== undefined) return r;
   }
   return null;
 }
@@ -234,17 +253,42 @@ export type PqReadResult = {
  * Read a logger export. `instrumentId` is one of PQ_INSTRUMENTS (or "auto"); `threePhase` decides the
  * √3 used when kVA has to be worked out from V and A.
  */
+// Sheets that never hold the time series of V, A, kW, PF. Harmonics sheets are by far the largest part
+// of an analyser export (an ALM 20 1 s recording: ~45 MB, 3 GB of memory if read), so they are skipped.
+const SKIP_SHEETS = /harmonic|event|config|session total|summary of|alarm|energy and cost|transient|inrush|photo/i;
+
+/** Lets the page paint (a loading spinner) before a long synchronous step. */
+const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
+
 export async function readPqFile(file: File, instrumentId: string, threePhase = true): Promise<PqReadResult> {
-  const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+  await breathe();
+  const buf = await file.arrayBuffer();
+  const isText = /\.(csv|txt|tsv)$/i.test(file.name || "");
+  let wantSheets: string[] | undefined;
+  if (!isText) {
+    try {
+      const names = XLSX.read(buf, { type: "array", bookSheets: true }).SheetNames || [];
+      const keep = names.filter((n) => !SKIP_SHEETS.test(n));
+      if (keep.length && keep.length < names.length) wantSheets = keep;
+    } catch { /* read everything below */ }
+  }
+  await breathe();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true, dense: true, ...(wantSheets ? { sheets: wantSheets } : {}) });
+  await breathe();
 
   let chosen = PQ_INSTRUMENTS.find((x) => x.id === instrumentId) ?? PQ_INSTRUMENTS[0];
   if (chosen.id === "auto") {
     let bestScore = -1;
     for (const inst of PQ_INSTRUMENTS.filter((x) => x.mapping)) {
-      const mm = mappingLookup(inst.mapping);
+      // Exact names only: the interval-free forms would let one model claim another's files.
+      const mm = new Set(Object.keys(inst.mapping || {}).map(slugColumn));
       let score = 0;
       for (const name of wb.SheetNames) {
-        const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, raw: true, defval: null, blankrows: false }).slice(0, 40);
+        const ws = wb.Sheets[name];
+        if (!ws || !ws["!ref"]) continue;
+        const r = XLSX.utils.decode_range(ws["!ref"]);
+        r.e.r = Math.min(r.e.r, r.s.r + 39);
+        const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null, blankrows: false, range: r });
         for (const row of grid) for (const c of row || []) if (typeof c === "string" && mm.has(slugColumn(c))) score++;
       }
       if (score > bestScore) { bestScore = score; chosen = inst; }
@@ -257,6 +301,8 @@ export async function readPqFile(file: File, instrumentId: string, threePhase = 
   const headers: Partial<Record<Core, string>> = {};
   const unmapped = new Set<string>(), mappedList = new Set<string>();
   for (const name of wb.SheetNames) {
+    if (!wb.Sheets[name]) continue;
+    await breathe();
     const sheet = readSheet(wb.Sheets[name], modelMap);
     if (!sheet) continue;
     sheet.unmapped.forEach((u) => unmapped.add(u));

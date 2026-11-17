@@ -504,5 +504,8 @@
   "V3-1 H25": {
     "standard_column": "U31_%FH25",
     "source_page": "Vφ φ H Harmonic %"
-  }
+  },
+  "V1-2 RMS": "voltage_phase_a",
+  "V2-3 RMS": "voltage_phase_b",
+  "V3-1 RMS": "voltage_phase_c"
 }
