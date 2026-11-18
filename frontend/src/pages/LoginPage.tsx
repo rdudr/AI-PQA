@@ -129,7 +129,7 @@ export function LoginPage() {
                       autoFocus
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      placeholder="e.g. Rishabh"
+                      placeholder="Your FOX Console Login ID"
                       className="w-full bg-transparent text-sm text-[#10375c] outline-none placeholder:text-[#10375c]/40"
                     />
                   </div>
