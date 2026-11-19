@@ -28,6 +28,7 @@ const CORE = [
   "voltage_phase_a", "voltage_phase_b", "voltage_phase_c",
   "current_phase_a", "current_phase_b", "current_phase_c",
   "kw", "kva", "kvar", "pf", "frequency",
+  "vthd_a", "vthd_b", "vthd_c", "ithd_a", "ithd_b", "ithd_c",
 ] as const;
 type Core = (typeof CORE)[number];
 
@@ -46,6 +47,13 @@ const BASE_SYNONYMS: Record<Core, string[]> = {
   kvar: ["kvar", "q_kvar", "reactive_power", "total_reactive_power", "q_t_var", "qt_var", "q_sum", "q_sum_avg", "qt"],
   pf: ["pf", "power_factor", "cos_phi", "cosphi", "pft", "pf_sum", "pf_sum_avg", "pf_total"],
   frequency: ["frequency", "freq", "hz", "f_hz", "f", "freq_avg", "freq_hz"],
+  // Voltage and current THD in % of the fundamental (the analyzer's parsers/base.py synonyms).
+  vthd_a: ["vthd_a", "uthd_a", "thd_v_a", "thdv_a", "v_thd_a", "u12_thdf", "v1_thdf", "u1_thdf", "vthd_l1", "thd_u_l1"],
+  vthd_b: ["vthd_b", "uthd_b", "thd_v_b", "thdv_b", "v_thd_b", "u23_thdf", "v2_thdf", "u2_thdf", "vthd_l2", "thd_u_l2"],
+  vthd_c: ["vthd_c", "uthd_c", "thd_v_c", "thdv_c", "v_thd_c", "u31_thdf", "v3_thdf", "u3_thdf", "vthd_l3", "thd_u_l3"],
+  ithd_a: ["ithd_a", "thd_i_a", "thdi_a", "i_thd_a", "a1_thdf", "i1_thdf", "ithd_l1", "thd_i_l1"],
+  ithd_b: ["ithd_b", "thd_i_b", "thdi_b", "i_thd_b", "a2_thdf", "i2_thdf", "ithd_l2", "thd_i_l2"],
+  ithd_c: ["ithd_c", "thd_i_c", "thdi_c", "i_thd_c", "a3_thdf", "i3_thdf", "ithd_l3", "thd_i_l3"],
 };
 
 const UNIT_SUFFIXES = ["_kvarh", "_kvar", "_kvah", "_kva", "_kwh", "_kw", "_varh", "_var", "_vah", "_va", "_wh", "_hz", "_ka", "_w", "_v", "_a"];
@@ -206,6 +214,11 @@ const avgOf = (...xs: Array<number | null | undefined>) => {
   return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
 };
 
+const maxOf = (...xs: Array<number | null | undefined>) => {
+  const v = xs.filter((x): x is number => typeof x === "number" && isFinite(x));
+  return v.length ? Math.max(...v) : null;
+};
+
 type SheetCols = Partial<Record<Core, { idx: number; header: string }>>;
 
 function readSheet(ws: XLSX.WorkSheet, modelMap: Map<string, Core | null>) {
@@ -234,8 +247,8 @@ function readSheet(ws: XLSX.WorkSheet, modelMap: Map<string, Core | null>) {
   return { cols, body, unmapped, mapped };
 }
 
-/** One reading of the logger, in V (line-line), A, kW, kVA, kVAr. */
-export type PqPoint = { t: number; v: number | null; i: number | null; kw: number | null; kva: number | null; kvar: number | null; pf: number | null };
+/** One reading of the logger, in V (line-line), A, kW, kVA, kVAr; THD in % (average of the phases). */
+export type PqPoint = { t: number; v: number | null; i: number | null; kw: number | null; kva: number | null; kvar: number | null; pf: number | null; vthd?: number | null; ithd?: number | null; iMax?: number | null };
 
 export type PqReadResult = {
   instrument: string;
@@ -247,6 +260,8 @@ export type PqReadResult = {
   mapped: string[];
   unmapped: string[];
   hasKw: boolean;
+  /** Voltage / current THD columns were found. */
+  hasThd: boolean;
 };
 
 /**
@@ -374,6 +389,9 @@ export async function readPqFile(file: File, instrumentId: string, threePhase = 
       t, v: vAvg !== null ? vAvg * vlnToVll : null,
       i: avgOf(g("current_phase_a"), g("current_phase_b"), g("current_phase_c")),
       kw: g("kw"), kva: g("kva"), kvar: g("kvar"), pf: g("pf"),
+      vthd: avgOf(g("vthd_a"), g("vthd_b"), g("vthd_c")),
+      ithd: avgOf(g("ithd_a"), g("ithd_b"), g("ithd_c")),
+      iMax: maxOf(g("current_phase_a"), g("current_phase_b"), g("current_phase_c")),
     };
     if (p.kw !== null) p.kw = Math.abs(p.kw);
     if (p.pf !== null) { let pf = Math.abs(p.pf); if (pf > 1.5) pf /= 100; p.pf = Math.min(1, pf); }
@@ -392,5 +410,6 @@ export async function readPqFile(file: File, instrumentId: string, threePhase = 
     intervalS: Math.max(1, median(diffs.filter((d) => d > 0))),
     mapped: [...mappedList], unmapped: [...unmapped],
     hasKw: points.some((p) => p.kw !== null),
+    hasThd: points.some((p) => p.vthd != null || p.ithd != null),
   };
 }

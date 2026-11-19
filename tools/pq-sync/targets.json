@@ -1,7 +1,8 @@
 {
   "targets": [
     { "app": "MLA", "dir": "../process/MLA - KISEM/lib", "reader": false, "uses": "long-term motor monitoring (lib/pq-import.ts)" },
-    { "app": "A-CMP", "dir": "../A-CMP/lib", "reader": true, "uses": "Excel based load / unload of compressors (lib/load-unload.ts)" }
+    { "app": "A-CMP", "dir": "../A-CMP/lib", "reader": true, "uses": "Excel based load / unload of compressors (lib/load-unload.ts)" },
+    { "app": "Xmer-Eff", "dir": "../process/Xmer-Eff/lib", "reader": true, "uses": "transformer main-line file: average loading, VTHD / ITHD and IEEE 519 (lib/xmer-pq.ts)" }
   ],
   "models": {
     "ALM-20": { "label": "ALM-20 (PQ analyser)" },
