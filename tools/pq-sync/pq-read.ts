@@ -29,6 +29,7 @@ const CORE = [
   "current_phase_a", "current_phase_b", "current_phase_c",
   "kw", "kva", "kvar", "pf", "frequency",
   "vthd_a", "vthd_b", "vthd_c", "ithd_a", "ithd_b", "ithd_c",
+  "current_neutral", "fhl_a", "fhl_b", "fhl_c", "fk_a", "fk_b", "fk_c",
 ] as const;
 type Core = (typeof CORE)[number];
 
@@ -48,12 +49,17 @@ const BASE_SYNONYMS: Record<Core, string[]> = {
   pf: ["pf", "power_factor", "cos_phi", "cosphi", "pft", "pf_sum", "pf_sum_avg", "pf_total"],
   frequency: ["frequency", "freq", "hz", "f_hz", "f", "freq_avg", "freq_hz"],
   // Voltage and current THD in % of the fundamental (the analyzer's parsers/base.py synonyms).
-  vthd_a: ["vthd_a", "uthd_a", "thd_v_a", "thdv_a", "v_thd_a", "u12_thdf", "v1_thdf", "u1_thdf", "vthd_l1", "thd_u_l1"],
-  vthd_b: ["vthd_b", "uthd_b", "thd_v_b", "thdv_b", "v_thd_b", "u23_thdf", "v2_thdf", "u2_thdf", "vthd_l2", "thd_u_l2"],
-  vthd_c: ["vthd_c", "uthd_c", "thd_v_c", "thdv_c", "v_thd_c", "u31_thdf", "v3_thdf", "u3_thdf", "vthd_l3", "thd_u_l3"],
+  vthd_a: ["vthd_a", "uthd_a", "thd_v_a", "thdv_a", "v_thd_a", "u12_thdf", "v1_2_thdf", "v1_thdf", "u1_thdf", "vthd_l1", "thd_u_l1"],
+  vthd_b: ["vthd_b", "uthd_b", "thd_v_b", "thdv_b", "v_thd_b", "u23_thdf", "v2_3_thdf", "v2_thdf", "u2_thdf", "vthd_l2", "thd_u_l2"],
+  vthd_c: ["vthd_c", "uthd_c", "thd_v_c", "thdv_c", "v_thd_c", "u31_thdf", "v3_1_thdf", "v3_thdf", "u3_thdf", "vthd_l3", "thd_u_l3"],
   ithd_a: ["ithd_a", "thd_i_a", "thdi_a", "i_thd_a", "a1_thdf", "i1_thdf", "ithd_l1", "thd_i_l1"],
   ithd_b: ["ithd_b", "thd_i_b", "thdi_b", "i_thd_b", "a2_thdf", "i2_thdf", "ithd_l2", "thd_i_l2"],
   ithd_c: ["ithd_c", "thd_i_c", "thdi_c", "i_thd_c", "a3_thdf", "i3_thdf", "ithd_l3", "thd_i_l3"],
+  // Neutral current, and the harmonic loss factor F_HL and K-factor of IEEE C57.110 / UL 1561 per phase
+  // (Chauvin Arnoux / ALM write them as "AN RMS", "FHL1", "FK1").
+  current_neutral: ["current_neutral", "neutral_current", "an_rms", "in_rms", "i_n", "irms_n", "i_neutral", "an", "in"],
+  fhl_a: ["fhl_a", "fhl1", "fhl_1", "fhl_l1"], fhl_b: ["fhl_b", "fhl2", "fhl_2", "fhl_l2"], fhl_c: ["fhl_c", "fhl3", "fhl_3", "fhl_l3"],
+  fk_a: ["fk_a", "fk1", "fk_1", "k_factor_a", "kf1"], fk_b: ["fk_b", "fk2", "fk_2", "k_factor_b", "kf2"], fk_c: ["fk_c", "fk3", "fk_3", "k_factor_c", "kf3"],
 };
 
 const UNIT_SUFFIXES = ["_kvarh", "_kvar", "_kvah", "_kva", "_kwh", "_kw", "_varh", "_var", "_vah", "_va", "_wh", "_hz", "_ka", "_w", "_v", "_a"];
@@ -247,8 +253,26 @@ function readSheet(ws: XLSX.WorkSheet, modelMap: Map<string, Core | null>) {
   return { cols, body, unmapped, mapped };
 }
 
-/** One reading of the logger, in V (line-line), A, kW, kVA, kVAr; THD in % (average of the phases). */
-export type PqPoint = { t: number; v: number | null; i: number | null; kw: number | null; kva: number | null; kvar: number | null; pf: number | null; vthd?: number | null; ithd?: number | null; iMax?: number | null };
+/**
+ * One reading of the logger, in V (line-line), A, kW, kVA, kVAr; THD in % (average of the phases).
+ * vUnb / iUnb: unbalance, largest deviation of a phase from the phase average, % of the average
+ * (NEMA MG 1 definition). iN: neutral current, A. fhl / fk: harmonic loss factor and K-factor
+ * (average of the phases), where the instrument logs them.
+ */
+export type PqPoint = {
+  t: number; v: number | null; i: number | null; kw: number | null; kva: number | null; kvar: number | null; pf: number | null;
+  vthd?: number | null; ithd?: number | null; iMax?: number | null;
+  vUnb?: number | null; iUnb?: number | null; iN?: number | null; fhl?: number | null; fk?: number | null;
+};
+
+/** One harmonic order over the recording: [order, average, 95th percentile, maximum] of the phase average. */
+export type HarmonicOrder = [number, number, number, number];
+/**
+ * The harmonic spectrum from the analyser's harmonic sheets: voltage in % of the fundamental; current
+ * in A when the instrument logs harmonic amps (then i1 is the average fundamental), else in % of the
+ * fundamental. Orders 2 to 50 that were logged.
+ */
+export type PqHarmonics = { v: HarmonicOrder[]; i: HarmonicOrder[]; iUnit: "A" | "%"; i1: number | null };
 
 export type PqReadResult = {
   instrument: string;
@@ -262,6 +286,8 @@ export type PqReadResult = {
   hasKw: boolean;
   /** Voltage / current THD columns were found. */
   hasThd: boolean;
+  /** Harmonic orders, when the file has harmonic sheets (and is small enough to read them). */
+  harmonics: PqHarmonics | null;
 };
 
 /**
@@ -392,6 +418,11 @@ export async function readPqFile(file: File, instrumentId: string, threePhase = 
       vthd: avgOf(g("vthd_a"), g("vthd_b"), g("vthd_c")),
       ithd: avgOf(g("ithd_a"), g("ithd_b"), g("ithd_c")),
       iMax: maxOf(g("current_phase_a"), g("current_phase_b"), g("current_phase_c")),
+      vUnb: unbalance(g("voltage_phase_a"), g("voltage_phase_b"), g("voltage_phase_c")),
+      iUnb: unbalance(g("current_phase_a"), g("current_phase_b"), g("current_phase_c")),
+      iN: g("current_neutral"),
+      fhl: avgOf(g("fhl_a"), g("fhl_b"), g("fhl_c")),
+      fk: avgOf(g("fk_a"), g("fk_b"), g("fk_c")),
     };
     if (p.kw !== null) p.kw = Math.abs(p.kw);
     if (p.pf !== null) { let pf = Math.abs(p.pf); if (pf > 1.5) pf /= 100; p.pf = Math.min(1, pf); }
@@ -411,5 +442,79 @@ export async function readPqFile(file: File, instrumentId: string, threePhase = 
     mapped: [...mappedList], unmapped: [...unmapped],
     hasKw: points.some((p) => p.kw !== null),
     hasThd: points.some((p) => p.vthd != null || p.ithd != null),
+    harmonics: !isText && buf.byteLength <= HARMONIC_MAX_BYTES ? readHarmonics(buf) : null,
+  };
+}
+
+/** Phase unbalance, %: the largest deviation from the average of the phases, over that average. */
+function unbalance(a: number | null, b: number | null, c: number | null): number | null {
+  if (a === null || b === null || c === null) return null;
+  const m = (a + b + c) / 3;
+  if (!(m > 0)) return null;
+  return (Math.max(Math.abs(a - m), Math.abs(b - m), Math.abs(c - m)) / m) * 100;
+}
+
+// The harmonic sheets of a 1 s recording run to tens of MB; above this size they are left out.
+const HARMONIC_MAX_BYTES = 30 * 1024 * 1024;
+// A harmonic column header: "V1-2 H5", "U12 H5", "A1 H5", "I1 h05", "V1 Harm 5".
+const H_COL = /^\s*([VUAI])\S*\s*(?:h|harm(?:onic)?)\s*0*(\d{1,2})\s*$/i;
+
+/**
+ * Harmonic orders from the analyser's harmonic sheets (ALM / Chauvin Arnoux: "V H Harmonic %",
+ * "A H Harmonic %", "A H Harmonic RMS"). Voltage from a % sheet; current from an RMS (amps) sheet
+ * when there is one, for the IEEE 519 limits in % of IL, else from a % sheet.
+ */
+function readHarmonics(buf: ArrayBuffer): PqHarmonics | null {
+  let wb: XLSX.WorkBook;
+  try {
+    const names = XLSX.read(buf, { type: "array", bookSheets: true }).SheetNames || [];
+    const want = names.filter((n) => /harmonic/i.test(n));
+    if (!want.length) return null;
+    wb = XLSX.read(buf, { type: "array", dense: true, sheets: want });
+  } catch { return null; }
+  type Pick = { kind: "v" | "i"; unit: "%" | "A"; byOrder: Map<number, number[]>; h1: number[] };
+  const found: Pick[] = [];
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws) continue;
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null, blankrows: false });
+    let hr = -1;
+    for (let r = 0; r < Math.min(40, grid.length); r++) if ((grid[r] || []).filter((c) => typeof c === "string" && H_COL.test(c)).length >= 3) { hr = r; break; }
+    if (hr < 0) continue;
+    const cols: { idx: number; kind: "v" | "i"; h: number }[] = [];
+    (grid[hr] || []).forEach((c, idx) => {
+      const m = typeof c === "string" ? c.match(H_COL) : null;
+      // neutral channel ("AN H3") left out: the spectrum is the phase average
+      if (m && !/^\s*[AI]N\s/i.test(c as string)) cols.push({ idx, kind: /[VU]/i.test(m[1]) ? "v" : "i", h: Number(m[2]) });
+    });
+    if (new Set(cols.map((c) => c.kind)).size !== 1) continue;
+    const kind = cols[0].kind;
+    const unitRow = (grid[hr + 1] || []).map((c) => String(c ?? "").trim().toLowerCase());
+    const unit: "%" | "A" = /rms/i.test(name) || unitRow.some((u) => u === "a") ? "A" : "%";
+    const byOrder = new Map<number, number[]>(), h1: number[] = [];
+    for (const row of grid.slice(hr + 1)) {
+      if (!row) continue;
+      const per = new Map<number, number[]>();
+      for (const c of cols) { const v = toNum(row[c.idx]); if (v !== null) { if (!per.has(c.h)) per.set(c.h, []); per.get(c.h)!.push(v); } }
+      for (const [h, vs] of per) {
+        const m = vs.reduce((a, b) => a + b, 0) / vs.length;
+        if (h === 1) h1.push(m);
+        else if (h >= 2 && h <= 50) { if (!byOrder.has(h)) byOrder.set(h, []); byOrder.get(h)!.push(m); }
+      }
+    }
+    if (byOrder.size) found.push({ kind, unit, byOrder, h1 });
+  }
+  const r3 = (v: number) => Number(v.toFixed(3));
+  const stats = (p: Pick): HarmonicOrder[] => [...p.byOrder.entries()].sort((a, b) => a[0] - b[0]).map(([h, xs]) => {
+    const s = [...xs].sort((a, b) => a - b);
+    return [h, r3(xs.reduce((a, b) => a + b, 0) / xs.length), r3(s[Math.min(s.length - 1, Math.max(0, Math.ceil(0.95 * s.length) - 1))]), r3(s[s.length - 1])];
+  });
+  const v = found.find((p) => p.kind === "v" && p.unit === "%");
+  const iA = found.find((p) => p.kind === "i" && p.unit === "A"), iP = found.find((p) => p.kind === "i" && p.unit === "%");
+  const i = iA ?? iP;
+  if (!v && !i) return null;
+  return {
+    v: v ? stats(v) : [], i: i ? stats(i) : [], iUnit: iA ? "A" : "%",
+    i1: iA && iA.h1.length ? Number((iA.h1.reduce((a, b) => a + b, 0) / iA.h1.length).toFixed(2)) : null,
   };
 }
