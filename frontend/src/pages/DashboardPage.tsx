@@ -28,9 +28,9 @@ import { Loading3D } from '@/components/Loading3D'
 import { DateTimePicker } from '@/components/DateTimePicker'
 import { buildDownloadName } from '@/utils/downloadName'
 import type { AnalyticsPayload, MetricBlock, ProcessResponse } from '@/types/pq'
-import { downloadNormalizedSessionExcel, downloadPostmanBundle, listFoxAudits } from '@/services/api'
+import { downloadNormalizedSessionExcel, downloadPostmanBundle, linkedTransformer, listFoxAudits, listFoxTransformers } from '@/services/api'
 import { sendToPostman } from '@/utils/postmanSend'
-import type { FoxAudit, PostmanRole } from '@/services/api'
+import type { FoxAudit, FoxTransformer, PostmanRole } from '@/services/api'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { exportPqReportPdf } from '@/utils/pqReportPdf'
@@ -289,6 +289,15 @@ export function DashboardPage() {
   const [postmanAudit, setPostmanAudit] = useState<string>(() => { try { return sessionStorage.getItem('fox-audit') || '' } catch { return '' } })
   const [foxAudits, setFoxAudits] = useState<FoxAudit[]>([])
   useEffect(() => { if (postmanOpen && !foxAudits.length) listFoxAudits().then(setFoxAudits) }, [postmanOpen, foxAudits.length])
+  // The transformer the recording was taken on (Xmer-Eff), preselected when opened from one.
+  const [postmanXmer, setPostmanXmer] = useState<{ id: string; tag: string } | null>(() => linkedTransformer())
+  const [foxXmers, setFoxXmers] = useState<FoxTransformer[]>([])
+  useEffect(() => {
+    if (!postmanOpen || !postmanAudit) { setFoxXmers([]); return }
+    let live = true
+    listFoxTransformers(postmanAudit).then((l) => { if (live) setFoxXmers(l) })
+    return () => { live = false }
+  }, [postmanOpen, postmanAudit])
   const [qualityMenuOpen, setQualityMenuOpen] = useState(false)
   const [data, setData] = useState<ProcessResponse | null>(null)
   const [dbLoading, setDbLoading] = useState(true)
@@ -781,6 +790,8 @@ export function DashboardPage() {
     panelName: postmanPanel.trim() || data.metadata.machine_name,
     recordingId: postmanRecId.trim(),
     auditId: postmanAudit,
+    xmerId: postmanAudit ? postmanXmer?.id || '' : '',
+    xmerTag: postmanAudit ? postmanXmer?.tag || '' : '',
   })
 
   // The link to PostMan: park this recording's findings and charts on the
@@ -1052,6 +1063,31 @@ export function DashboardPage() {
                   ))}
                 </select>
                 <p className="text-xs text-[#10375c]/60">Kept with the audit: PostMan reads it with the rest of the audit's data and joins it to the panel in the single line diagram by the recording ID.</p>
+              </div>
+            )}
+            {postmanAudit && (foxXmers.length > 0 || postmanXmer) && (
+              <div className="mt-3 space-y-1">
+                <Label htmlFor="postman-xmer">For transformer (Xmer-Eff)</Label>
+                <select
+                  id="postman-xmer"
+                  value={postmanXmer?.id || (postmanXmer?.tag ? `tag:${postmanXmer.tag}` : '')}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    const t = foxXmers.find((x) => x.id === v)
+                    setPostmanXmer(t ? { id: t.id, tag: t.tag } : null)
+                    if (t && !postmanPanel.trim()) setPostmanPanel(t.tag)
+                  }}
+                  className="flex h-10 w-full rounded-xl border border-[#10375c]/12 bg-white/70 px-3 py-2 text-sm text-[#10375c] shadow-inner outline-none focus-visible:ring-2 focus-visible:ring-[#f3c623]/60"
+                >
+                  <option value="">Not on a transformer (a panel only)</option>
+                  {postmanXmer && !foxXmers.some((x) => x.id === postmanXmer.id) && (
+                    <option value={postmanXmer.id || `tag:${postmanXmer.tag}`}>{postmanXmer.tag || postmanXmer.id} (opened from Xmer-Eff)</option>
+                  )}
+                  {foxXmers.map((t) => (
+                    <option key={t.id} value={t.id}>{[t.tag || t.id, t.location, t.rating_kva ? `${t.rating_kva} kVA` : ''].filter(Boolean).join(' · ')}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-[#10375c]/60">PostMan prints this recording's compliance, health and events inside that transformer's section of the report.</p>
               </div>
             )}
             <div className="mt-3 grid gap-3 md:grid-cols-3">

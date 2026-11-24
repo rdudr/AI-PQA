@@ -32,6 +32,10 @@ export function LoginPage() {
     try {
       if (audit) sessionStorage.setItem('fox-audit', audit)
       else sessionStorage.removeItem('fox-audit')
+      // Opened from a transformer in Xmer-Eff: Send to PostMan files the recording under it.
+      const xmer = q.get('xmer'), tag = q.get('tag')
+      if (xmer || tag) sessionStorage.setItem('fox-xmer', JSON.stringify({ id: xmer || '', tag: tag || '' }))
+      else sessionStorage.removeItem('fox-xmer')
     } catch { /* the audit is simply asked for again */ }
     window.history.replaceState(null, '', window.location.pathname) // the code never stays in the address bar
     setBusy(true)

@@ -6,7 +6,7 @@ from datetime import datetime
 import pandas as pd
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from models.schema import AuditMetadata, ProcessResponse, TablePageResponse
 from reports.postman_bundle import build_postman_bundle
@@ -820,6 +820,10 @@ class PostmanSendRequest(PostmanExportRequest):
     cost: dict | None = None            # {inputs, result} from utils/costOfPoorQuality.ts
     charts: list[dict] | None = None    # [{title, image (data URL)}] captured from the dashboard
     audit_id: str = ""                  # the FOX Console audit to keep it with (KISEM server)
+    # The Xmer-Eff transformer this recording was taken on (optional): PostMan then prints the
+    # findings inside that transformer's section. Its record id, and its tag as a fallback.
+    xmer_id: str = Field("", max_length=80)
+    xmer_tag: str = Field("", max_length=60)
 
 
 def _bearer(request: Request) -> str:
@@ -839,6 +843,12 @@ def fox_audit_profile(request: Request, audit_id: str = Query(..., max_length=40
     return fox_console_save.audit_profile(_bearer(request), audit_id.strip())
 
 
+@router.get("/fox/transformers")
+def fox_transformers(request: Request, audit_id: str = Query(..., max_length=40)) -> dict:
+    """The audit's transformers from Xmer-Eff, for "For transformer" on Send to PostMan."""
+    return fox_console_save.audit_transformers(_bearer(request), audit_id.strip())
+
+
 @router.post("/session/{session_id}/postman-send")
 def send_to_postman(session_id: str, req: PostmanSendRequest, request: Request) -> dict:
     """Queue this recording for PostMan under the chosen panel. The link
@@ -855,6 +865,8 @@ def send_to_postman(session_id: str, req: PostmanSendRequest, request: Request) 
     if req.charts:
         bundle["charts"] = [{"title": str(c.get("title", "")), "image": str(c.get("image", "")), "w": c.get("w"), "h": c.get("h")}
                             for c in req.charts if c.get("image")]
+    bundle["xmer_id"] = (req.xmer_id or "").strip()
+    bundle["xmer_tag"] = (req.xmer_tag or "").strip()
     bundle["sent_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     postman_queue.put(session_id, bundle)
     # Kept with the audit in FOX Console too, so PostMan has it for good, not only for 24 hours.

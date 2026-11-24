@@ -101,6 +101,32 @@ export interface PostmanExportOptions {
   recordingId: string
   /** The FOX Console audit to keep the recording with (KISEM server). */
   auditId?: string
+  /** The Xmer-Eff transformer this recording was taken on: PostMan prints it in that transformer's section. */
+  xmerId?: string
+  xmerTag?: string
+}
+
+export interface FoxTransformer { id: string; tag: string; location: string; rating_kva: number | null }
+
+/** The audit's transformers as recorded in Xmer-Eff (empty off the KISEM server or on an older Console). */
+export async function listFoxTransformers(auditId: string): Promise<FoxTransformer[]> {
+  if (!auditId) return []
+  try {
+    const r = await fetch(`${API_BASE}/api/upload/fox/transformers?audit_id=${encodeURIComponent(auditId)}`)
+    return r.ok ? (((await r.json()) as { transformers?: FoxTransformer[] }).transformers ?? []) : []
+  } catch {
+    return []
+  }
+}
+
+/** The transformer the analyser was opened for from Xmer-Eff (?xmer=…&tag=…), if any. */
+export function linkedTransformer(): { id: string; tag: string } | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem('fox-xmer') || 'null') as { id?: string; tag?: string } | null
+    return v && (v.id || v.tag) ? { id: String(v.id || ''), tag: String(v.tag || '') } : null
+  } catch {
+    return null
+  }
 }
 
 export interface FoxAudit { id: string; title?: string; client_name?: string; site_name?: string; industry_tag?: string; fy?: string }

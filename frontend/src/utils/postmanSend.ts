@@ -59,6 +59,8 @@ export async function sendToPostman(
     panel_name: opts.panelName,
     recording_id: opts.recordingId,
     audit_id: opts.auditId || '',
+    xmer_id: opts.xmerId || '',
+    xmer_tag: opts.xmerTag || '',
     data_quality: data.data_quality,
     nominal_voltage: data.nominal_voltage,
     compliance: { rules, summary: complianceSummary(rules) },

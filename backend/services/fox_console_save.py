@@ -58,6 +58,22 @@ def audit_profile(token: str, audit_id: str) -> dict:
     return {"profile": data.get("profile") if status == 200 else None, "engineer": (me.get("user") or {}).get("name", "")}
 
 
+def audit_transformers(token: str, audit_id: str) -> dict:
+    """The audit's transformers as recorded in Xmer-Eff (id, tag, location, kVA), so a recording
+    can be sent to PostMan for one of them. Empty when the Console is older or unreachable."""
+    if not FOX_CONSOLE_URL or not token or not audit_id:
+        return {"transformers": []}
+    status, data = _call("GET", f"/api/device/transformers?audit_id={urllib.parse.quote(audit_id)}", token)
+    if status != 200:
+        return {"transformers": []}
+    out = []
+    for t in data.get("transformers") or []:
+        if isinstance(t, dict) and t.get("id"):
+            out.append({"id": str(t["id"])[:80], "tag": str(t.get("tag") or "")[:60],
+                        "location": str(t.get("location") or "")[:120], "rating_kva": t.get("rating_kva")})
+    return {"transformers": out}
+
+
 def _thin(bundle: dict) -> dict:
     """The bundle without chart images, and with series halved until it fits one record."""
     b = {k: v for k, v in bundle.items() if k != "charts"}
